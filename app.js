@@ -81,10 +81,10 @@ app.get('/logout', (req, res) => {
 
 app.get('/sendpogs', isAuthenticated, (req, res) => {
 const data ={
-    from:34,
-    to:108,
-    amount:4,
-    pin: 2018,
+    from:2,
+    to:5,
+    amount:25,
+    pin: 1234,
     reason: 'test pog transfer'
 }
 
@@ -113,6 +113,13 @@ socket.on('setClass', (classData) => {
     console.log('Received class data:', classData);
     // You can store or process the class data as needed
 });
+
+// Check the transfer response
+socket.on("transferResponse", (response) => {
+    console.log("Transfer Response:", response);
+    // response will be: { success: true/false, message: "..." }
+});
+
 //start server
 app.listen(PORT, () => {
     console.log(`Server is running on port http://localhost:${PORT}`);
