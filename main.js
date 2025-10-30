@@ -1,3 +1,96 @@
+// Add these variables at the top of your main.js file
+let hasPaid = false;
+let pendingAction = 'play'; // Set default action
+
+// Your existing pay() function is good
+function pay() {
+    document.querySelector('.payment-content').style.display = 'block';
+    document.querySelector('.payment-overlay').style.display = 'block';
+    getPrice(); // Load the current price
+}
+
+function hidePayment() {
+    document.querySelector('.payment-content').style.display = 'none';
+    document.querySelector('.payment-overlay').style.display = 'none';
+}
+
+// Add these payment-related functions
+async function post(path, body) {
+    const res = await fetch(path, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+    });
+    const text = await res.text();
+    try {
+        return JSON.parse(text);
+    } catch {
+        return { raw: text };
+    }
+}
+
+async function getPrice() {
+    try {
+        const res = await fetch('/getAmount', { method: 'POST' });
+        const data = await res.json();
+        if (data.ok) {
+            document.getElementById('price').innerText = `${data.amount} Digipogs`;
+        } else {
+            document.getElementById('price').innerText = 'Error loading price';
+        }
+    } catch (e) {
+        document.getElementById('price').innerText = 'Error loading price';
+    }
+}
+
+async function doTransfer() {
+    const pin = document.getElementById('pin').value;
+    const savePIN = document.getElementById('savePIN').checked;
+
+    // Save PIN if checkbox is checked
+    if (savePIN) {
+        try {
+            await post('/savePin', { pin });
+        } catch (error) {
+            console.error('Failed to save PIN:', error);
+        }
+    }
+
+    let reason = 'Game Entry Fee';
+
+    // Validate required fields
+    if (!pin) {
+        alert('Please enter your PIN.');
+        return;
+    }
+
+    try {
+        const result = await post('/transfer', { pin, reason });
+        console.log('Transfer result:', result);
+
+        if (result.ok) {
+            // Payment successful
+            hasPaid = true;
+            console.log('Payment successful - hasPaid set to:', hasPaid);
+            hidePayment();
+
+            // Now start the game
+            if (window.game) {
+                window.game.startGame();
+            }
+            return;
+        } else {
+            // Payment failed
+            let errorMessage = result.error || result.message || 'Unknown error';
+            alert('Payment failed: ' + errorMessage);
+            console.error('Payment failed:', result);
+        }
+    } catch (error) {
+        console.error('Payment error:', error);
+        alert('Payment failed: Network error');
+    }
+}
+
 class Game {
     constructor() {
         this.canvas = document.getElementById('gameCanvas');
@@ -34,7 +127,7 @@ class Game {
         this.waveProgress = 0;
         this.waveRequirement = 300; // Points needed to complete a wave
         this.globalEnemyMultiplier = 1; // Increases every 5 waves
-    this.enemyDamageMultiplier = 1; // increases enemy bullet/contact damage every 5 waves
+        this.enemyDamageMultiplier = 1; // increases enemy bullet/contact damage every 5 waves
 
         this.keys = {};
         this.lastTime = 0;
@@ -119,6 +212,7 @@ class Game {
         const restartBtn = document.getElementById('restartBtn');
         if (restartBtn) {
             restartBtn.addEventListener('click', () => {
+                pay();
                 // restart should take the player back into the game immediately
                 this.restart();
             });
@@ -127,6 +221,13 @@ class Game {
 
     // start the game from the start menu (was missing -> caused start button error)
     startGame() {
+
+        // Check if payment was made
+        if (!hasPaid) {
+            console.log('Payment required before starting game');
+            return; // Don't start if not paid
+        }
+
         this.started = true;
         this.gameRunning = true;
         this.gamePaused = false;
@@ -154,6 +255,7 @@ class Game {
         if (!this.started) {
             // start button
             if (this.pointInRect(x, y, this.uiRects.startButton)) {
+                pay();
                 this.startGame();
                 return;
             }
@@ -194,6 +296,7 @@ class Game {
                 return;
             }
             if (this.pointInRect(x, y, this.uiRects.pause.restartButton)) {
+                pay();
                 this.restart(true);
                 return;
             }
@@ -938,6 +1041,7 @@ class Game {
     }
 
     restart(startImmediately = false) {
+        hasPaid = false; // reset paywall
         this.bullets = [];
         this.enemies = [];
         this.shooters = [];
@@ -960,8 +1064,8 @@ class Game {
         this.gameRunning = startImmediately; // if called from startGame, start playing immediately
         this.started = startImmediately || this.started; // keep started true if asked
         this.player = new Player(this.width / 2, this.height - 50);
-    // give player a reference back to the game for multiplier access
-    this.player.game = this;
+        // give player a reference back to the game for multiplier access
+        this.player.game = this;
 
         document.getElementById('scoreValue').textContent = this.score;
         document.getElementById('livesValue').textContent = this.lives;
@@ -1407,11 +1511,11 @@ class Boss {
         this.width = 80;
         this.height = 60;
         this.speed = 0.02 * multiplier;
-    this.hp = Math.ceil(15 * multiplier);
+        this.hp = Math.ceil(15 * multiplier);
         this.maxHp = Math.ceil(15 * multiplier);
         this.shootCooldown = Math.max(400, 800 / multiplier);
-    this.lastShootTime = 0;
-    this.contactDamage = Math.ceil(4 * multiplier);
+        this.lastShootTime = 0;
+        this.contactDamage = Math.ceil(4 * multiplier);
         this.specialAttackCooldown = Math.max(3000, 5000 / multiplier);
         this.lastSpecialAttack = 0;
         this.movementDirection = 1;
