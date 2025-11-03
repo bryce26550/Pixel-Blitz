@@ -10,18 +10,101 @@
 
 <body>
     <div id="gameContainer">
-        <canvas id="gameCanvas" width="800" height="600"></canvas>
-        <div id="gameUI">
-            <div id="score">Score: <span id="scoreValue">0</span></div>
-            <div id="lives">Lives: <span id="livesValue">3</span></div>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    
+    <!-- Game UI (always visible during gameplay) -->
+    <div id="gameUI">
+        <div id="score">Score: <span id="scoreValue">0</span></div>
+        <div id="lives">Lives: <span id="livesValue">3</span></div>
+        <div id="wave">Wave: <span id="waveValue">1</span></div>
+        <div id="level">Level: <span id="levelValue">1</span></div>
+        <div id="exp">EXP: <span id="expValue">0</span>/<span id="expMaxValue">100</span></div>
+        <div id="health">Shield: <span id="healthValue">10</span>/<span id="healthMaxValue">10</span></div>
+        
+        <!-- Progress bars -->
+        <div class="progress-container">
+            <div class="progress-bar">
+                <div class="progress-fill" id="waveProgressFill"></div>
+            </div>
+            <span class="progress-label">Wave Progress</span>
         </div>
-        <div id="gameOver" class="hidden">
-            <h2>Game Over!</h2>
-            <p>Final Score: <span id="finalScore">0</span></p>
-            <button id="restartBtn">Play Again</button>
+        <div class="progress-container">
+            <div class="progress-bar">
+                <div class="progress-fill" id="expProgressFill"></div>
+            </div>
+            <span class="progress-label">Experience</span>
         </div>
     </div>
-    <script src="/main.js"></script>
+
+    <!-- Start Menu -->
+    <div id="startMenu" class="menu-overlay">
+        <div class="menu-panel">
+            <h1>NEO PIX</h1>
+            <p class="subtitle">Survive waves, level up, and customize your ship</p>
+            
+            <div class="menu-content">
+                <!-- Left side: Player preview -->
+                <div class="player-preview">
+                    <h3>Player Preview</h3>
+                    <div id="playerPreview" class="preview-box">
+                        <div id="playerSprite" class="player-sprite"></div>
+                    </div>
+                    <div class="customization-controls">
+                        <button id="colorBtn" class="customize-btn">Cycle Color</button>
+                        <button id="shapeBtn" class="customize-btn">Change Shape</button>
+                    </div>
+                    <p class="hint">Click preview to cycle color</p>
+                </div>
+                
+                <!-- Right side: Controls info -->
+                <div class="controls-info">
+                    <h3>Controls</h3>
+                    <div class="control-list">
+                        <div class="control-item">Move: WASD / Arrow Keys</div>
+                        <div class="control-item">Aim: Move mouse</div>
+                        <div class="control-item">Shoot: Space or Left-Click</div>
+                        <div class="control-item">Pause: ESC</div>
+                    </div>
+                </div>
+            </div>
+            
+            <button id="startBtn" class="primary-btn">START GAME</button>
+            <p class="footer-text">Mouse to aim • Customize before starting</p>
+        </div>
+    </div>
+
+    <!-- Pause Menu -->
+    <div id="pauseMenu" class="menu-overlay hidden">
+        <div class="menu-panel">
+            <h1>PAUSED</h1>
+            <div class="menu-buttons">
+                <button id="resumeBtn" class="primary-btn">RESUME</button>
+                <button id="pauseRestartBtn" class="secondary-btn">RESTART</button>
+                <button id="quitBtn" class="secondary-btn">QUIT TO MENU</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Level Up Menu -->
+    <div id="levelUpMenu" class="menu-overlay hidden">
+        <div class="menu-panel">
+            <h1 class="level-up-title">LEVEL UP!</h1>
+            <p class="level-up-subtitle">Choose an upgrade:</p>
+            <div id="upgradeOptions" class="upgrade-grid">
+                <!-- Upgrade options populated by JavaScript -->
+            </div>
+            <p class="level-up-hint">Click an option or press 1, 2, or 3</p>
+        </div>
+    </div>
+</div>
+
+<!-- Load JavaScript files in the correct order -->
+<script src="/game/player.js"></script>
+<script src="/game/enemy.js"></script>
+<script src="/game/boss.js"></script>
+<script src="/game/game.js"></script>
+<script src="/game/main.js"></script>
+
     <div class="payment-overlay" onclick="hidePayment()"></div>
     <div class="payment-content">
         <button onclick="hidePayment()" id="hide-payment">×</button>
@@ -34,11 +117,6 @@
                     <input id="pin" type="password" pattern="\d*" inputmode="numeric" maxlength="6"
                         placeholder="Enter your PIN" oninput="this.value = this.value.replace(/[^0-9]/g,'');">
                 </div>
-            </div>
-            <div class="row">
-                <label class="small" style="margin-bottom:0; margin-right:10px;">Save your PIN for next
-                    purchase?</label>
-                <input id="savePIN" type="checkbox" style="margin-left:0;">
             </div>
             <div class="row price-display">
                 <div class="price-content">
@@ -54,71 +132,9 @@
 
     <script>
         const pinInput = document.getElementById('pin');
-        const savePIN = document.getElementById('savePIN');
 
-        // Load saved PIN on page load
-        async function loadSavedPin() {
-            try {
-                const savedPin = await getSavedPin();
-                if (savedPin) {
-                    pinInput.value = savedPin;
-                    savePIN.checked = true; // Check the save PIN checkbox if we loaded a PIN
-                }
-            } catch (error) {
-                console.error('Failed to load saved PIN:', error);
-            }
-        }
-
-        async function getSavedPin() {
-            try {
-                const res = await fetch('/getPin', { method: 'POST' });
-                const data = await res.json();
-                if (!data.ok) {
-                    console.error('Failed to retrieve saved PIN', data.error);
-                    return '';
-                }
-                return data.userPin || '';
-            } catch (error) {
-                console.error('Error fetching saved PIN:', error);
-                return '';
-            }
-        }
-
-        // Load saved PIN when the page loads
-        loadSavedPin();
-        async function post(path, body) {
-            const res = await fetch(path, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
-            });
-            const text = await res.text();
-            try { return JSON.parse(text); } catch { return { raw: text }; }
-        }
         async function doTransfer() {
             const pin = pinInput.value; // Get the current PIN value from input
-
-            // Save PIN if checkbox is checked
-            if (savePIN.checked) {
-                try {
-                    await post('/savePin', { pin });
-                    //console.log('PIN saved successfully');
-                } catch (error) {
-                    console.error('Failed to save PIN:', error);
-                }
-            }
-
-            let reason = 'Jukebar Payment';
-
-            if (pendingAction === 'play') {
-                reason += ' - Play Track';
-            } else if (pendingAction === 'skip') {
-                reason += ' - Skip Track';
-            } else {
-                console.error('Unknown pending action:', pendingAction);
-                alert('Unknown action. Please try again. Your digipogs have not been charged.');
-                return;
-            }
 
             // Validate required fields
             if (!pin) {
@@ -127,8 +143,7 @@
             }
 
             try {
-                const result = await post('/transfer', { pin, reason });
-                //console.log('Transfer result:', result); // Debug log
+                const result = await post('/payIn', { pin });
 
                 // Check for success in different possible formats
                 const isSuccess = result.ok === true || result.success === true || result.status === 'success' ||
@@ -156,31 +171,6 @@
                 console.error('Transfer error:', error);
                 alert('Transfer failed: Network error');
             }
-        }
-
-        async function getPrice() {
-                const res = await fetch('/getAmount', { method: 'POST' });
-                const data = await res.json();
-                const priceRow = document.getElementsByClassName('row price-display')[0];
-                const discountEl = document.getElementById('discount');
-                if (data.ok) {
-                    document.getElementById('price').innerText = `25 Digipogs`;
-                    if (data.discountEligible) {
-                        priceRow.style.border = '1px solid rgba(255, 215, 0, 0.5)';
-                        priceRow.style.background = 'rgba(255, 215, 0, 0.15)';
-                        discountEl.innerText = `Leaderboard discount: -${data.discountAmount} pogs`;
-                        discountEl.style.display = '';
-                    } else {
-                        priceRow.style.border = '';
-                        priceRow.style.background = '';
-                        discountEl.innerText = '';
-                        discountEl.style.display = 'none';
-                    }
-                } else {
-                    document.getElementById('price').innerText = 'Error loading price';
-                    discountEl.innerText = '';
-                    discountEl.style.display = 'none';
-                }
         }
 
     </script>

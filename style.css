@@ -207,3 +207,313 @@ label.checkbox {
     .actions button { padding: 9px 14px; font-size: 14px; }
 }
 
+/* Menu System Styles */
+.menu-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+}
+
+.menu-panel {
+    background: rgba(20, 20, 30, 0.95);
+    border-radius: 12px;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    padding: 40px;
+    text-align: center;
+    max-width: 600px;
+    width: 90%;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.menu-panel h1 {
+    color: white;
+    font-size: 48px;
+    font-weight: bold;
+    margin: 0 0 20px 0;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.subtitle {
+    color: #cccccc;
+    font-size: 16px;
+    margin-bottom: 30px;
+}
+
+.menu-content {
+    display: flex;
+    justify-content: space-between;
+    gap: 40px;
+    margin-bottom: 40px;
+}
+
+/* Player Preview */
+.player-preview {
+    flex: 1;
+    text-align: left;
+}
+
+.player-preview h3 {
+    color: white;
+    margin-bottom: 15px;
+    font-size: 18px;
+}
+
+.preview-box {
+    width: 200px;
+    height: 180px;
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 15px;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: background 0.3s ease;
+}
+
+.preview-box:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.player-sprite {
+    width: 30px;
+    height: 30px;
+    background: #00ff00;
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.customization-controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.customize-btn {
+    padding: 8px 16px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: white;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: background 0.3s ease;
+}
+
+.customize-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.hint {
+    color: #aaaaaa;
+    font-size: 12px;
+    margin: 0;
+}
+
+/* Controls Info */
+.controls-info {
+    flex: 1;
+    text-align: left;
+}
+
+.controls-info h3 {
+    color: white;
+    margin-bottom: 15px;
+    font-size: 18px;
+}
+
+.control-list {
+    color: #cccccc;
+}
+
+.control-item {
+    margin-bottom: 8px;
+    font-size: 14px;
+    padding: 4px 0;
+}
+
+/* Buttons */
+.primary-btn {
+    background: #71ff4d;
+    color: #222222;
+    border: 2px solid #094d00;
+    padding: 15px 40px;
+    font-size: 20px;
+    font-weight: bold;
+    border-radius: 6px;
+    cursor: pointer;
+    margin: 10px;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+}
+
+.primary-btn:hover {
+    background: #5ee63a;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(113, 255, 77, 0.3);
+}
+
+.secondary-btn {
+    background: #ffd54d;
+    color: #222222;
+    border: 2px solid #b8860b;
+    padding: 12px 30px;
+    font-size: 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    margin: 10px;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+}
+
+.secondary-btn:hover {
+    background: #ffcd1a;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(255, 213, 77, 0.3);
+}
+
+.menu-buttons {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.footer-text {
+    color: #aaaaaa;
+    font-size: 12px;
+    margin-top: 20px;
+}
+
+/* Level Up Menu */
+.level-up-title {
+    color: gold !important;
+}
+
+.level-up-subtitle {
+    color: white;
+    font-size: 20px;
+    margin-bottom: 30px;
+}
+
+.upgrade-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-bottom: 30px;
+    text-align: left;
+}
+
+.upgrade-option {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    padding: 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.upgrade-option:hover {
+    background: rgba(255, 255, 255, 0.1);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(255, 255, 255, 0.1);
+}
+
+.upgrade-name {
+    color: white;
+    font-weight: bold;
+    font-size: 18px;
+    margin-bottom: 5px;
+}
+
+.upgrade-description {
+    color: lightgray;
+    font-size: 14px;
+}
+
+.upgrade-number {
+    position: absolute;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: bold;
+}
+
+.level-up-hint {
+    color: yellow;
+    font-size: 16px;
+}
+
+/* Game UI */
+#gameUI {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    color: white;
+    font-family: Arial, sans-serif;
+    z-index: 10;
+}
+
+#gameUI > div {
+    margin-bottom: 5px;
+    font-size: 16px;
+}
+
+.progress-container {
+    margin-bottom: 10px;
+}
+
+.progress-bar {
+    width: 200px;
+    height: 10px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 5px;
+    overflow: hidden;
+    margin-bottom: 5px;
+}
+
+.progress-fill {
+    height: 100%;
+    transition: width 0.3s ease;
+    border-radius: 5px;
+}
+
+#waveProgressFill {
+    background: linear-gradient(90deg, #ffd700, #ffed4e);
+}
+
+#expProgressFill {
+    background: linear-gradient(90deg, #4169e1, #6495ed);
+}
+
+.progress-label {
+    color: white;
+    font-size: 12px;
+}
+
+/* Utility classes */
+.hidden {
+    display: none !important;
+}
+
+/* Player shape styles for preview */
+.triangle-shape {
+    clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+}
+
+.circle-shape {
+    border-radius: 50%;
+}

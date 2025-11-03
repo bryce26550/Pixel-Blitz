@@ -7,6 +7,7 @@ const { io } = require('socket.io-client');
 const sqlite3 = require('sqlite3').verbose();
 const SQLiteStore = require('connect-sqlite3')(session);
 const path = require('path');
+const { log } = require('console');
 
 //database setup
 const db = new sqlite3.Database('./db/database.db', (err) => {
@@ -80,49 +81,21 @@ app.get('/logout', (req, res) => {
     res.redirect('/login');
 });
 
-app.get('/sendpogs', isAuthenticated, (req, res) => {
-    const data = {
-        from: 3,
-        to: 1,
-        amount: 25,
-        pin: 1234,
-        reason: 'test pog transfer',
-    }
-
-    console.log(data);
-
-    console.log('Socket connected status before transfer:', socket.connected);
-    socket.emit('transferDigipogs', data);
-    console.log('Transfer request sent via socket');
-
-    res.send('Pogs sent!');
-});
-
 // Make sure these middleware lines are uncommented
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Get the payment amount
-app.post('/getAmount', isAuthenticated, (req, res) => {
-    res.json({
-        ok: true,
-        amount: 25, // Your game fee
-        discountEligible: false,
-        discountAmount: 0
-    });
-});
-
 // Handle the actual payment transfer
-app.post('/transfer', isAuthenticated, (req, res) => {
-    const { pin, reason } = req.body;
+app.post('/payIn', isAuthenticated, (req, res) => {
+    const { pin } = req.body;
     const userId = req.session.token.id;
 
     const data = {
         from: userId,
-        to: 1, // Replace with correct recipient ID
-        amount: 25,
+        to: 1, // Replace with 27 when running official server
+        amount: 1,
         pin: parseInt(pin),
-        reason: reason || 'Game Entry Fee'
+        reason: 'Game Entry Fee'
     };
 
     console.log('Processing payment:', data);
@@ -156,6 +129,54 @@ app.post('/transfer', isAuthenticated, (req, res) => {
             console.error('Transfer error:', error);
             res.json({ ok: false, error: 'Transfer failed' });
         });
+});
+
+app.post('/payOut', isAuthenticated, (req, res) => {
+    const { payOutAmount } = req.body; //gets payout amount
+    const userId = req.session.token.id;
+
+    if(!payOutAmount || payOutAmount <= 0) {
+        return res.json({ ok: false, error: 'Invalid payout amount' });
+    }
+
+    const data = {
+        from: 1, // Replace with 27 when running official server
+        to: userId,
+        amount: payOutAmount,
+        pin: 2018,
+        reason: 'Game Winnings Payout' 
+    };
+
+    log('Processing payout:', data);
+
+    //create a promise to handle async socket response
+    const transferPromise = new Promise((resolve, reject) => {
+        const timeout =setTimeout(()=>{
+            reject(new Error('Transfer timeout'));
+        },10000);
+
+        //listen for the response once
+        socket.once('transferResponse', (response)=>{
+            clearTimeout(timeout);
+            resolve(response);
+        });
+
+    socket.emit('transferDigipogs', data);
+});
+
+transferPromise
+    .then(response => {
+        console.log('Payout response:', response);
+        if (response.success) {
+            res.json({ ok: true, message: 'Payout successful' });
+        } else {
+            res.json({ ok: false, error: response.message || 'Payout failed' });
+        }
+    })
+    .catch(error => {
+        console.error('Payout error:', error);
+        res.json({ ok: false, error: 'Payout failed' });
+    });
 });
 
 // Optional: Save PIN feature
@@ -218,4 +239,3 @@ socket.onAny((eventName, ...args) => {
 app.listen(PORT, () => {
     console.log(`Server is running on port http://localhost:${PORT}`);
 });
-
