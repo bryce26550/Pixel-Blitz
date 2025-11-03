@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Neo Pix</title>
     <link rel="stylesheet" href="/style.css">
 </head>
+
 <body>
     <div id="gameContainer">
         <canvas id="gameCanvas" width="800" height="600"></canvas>
@@ -20,5 +22,171 @@
         </div>
     </div>
     <script src="/main.js"></script>
+    <div class="payment-overlay" onclick="hidePayment()"></div>
+    <div class="payment-content">
+        <button onclick="hidePayment()" id="hide-payment">×</button>
+
+        <div class="card">
+            <h3 style="margin-top:0">Game Entry Payment</h3>
+            <div class="row">
+                <label class="small">PIN</label>
+                <div>
+                    <input id="pin" type="password" pattern="\d*" inputmode="numeric" maxlength="6"
+                        placeholder="Enter your PIN" oninput="this.value = this.value.replace(/[^0-9]/g,'');">
+                </div>
+            </div>
+            <div class="row">
+                <label class="small" style="margin-bottom:0; margin-right:10px;">Save your PIN for next
+                    purchase?</label>
+                <input id="savePIN" type="checkbox" style="margin-left:0;">
+            </div>
+            <div class="row price-display">
+                <div class="price-content">
+                    <span class="price-label">Game Entry Cost:</span>
+                    <span class="price-amount" id="price">25 Digipogs</span>
+                </div>
+            </div>
+            <div class="actions">
+                <button class="primary" onclick="doTransfer();">Pay & Play</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const pinInput = document.getElementById('pin');
+        const savePIN = document.getElementById('savePIN');
+
+        // Load saved PIN on page load
+        async function loadSavedPin() {
+            try {
+                const savedPin = await getSavedPin();
+                if (savedPin) {
+                    pinInput.value = savedPin;
+                    savePIN.checked = true; // Check the save PIN checkbox if we loaded a PIN
+                }
+            } catch (error) {
+                console.error('Failed to load saved PIN:', error);
+            }
+        }
+
+        async function getSavedPin() {
+            try {
+                const res = await fetch('/getPin', { method: 'POST' });
+                const data = await res.json();
+                if (!data.ok) {
+                    console.error('Failed to retrieve saved PIN', data.error);
+                    return '';
+                }
+                return data.userPin || '';
+            } catch (error) {
+                console.error('Error fetching saved PIN:', error);
+                return '';
+            }
+        }
+
+        // Load saved PIN when the page loads
+        loadSavedPin();
+        async function post(path, body) {
+            const res = await fetch(path, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            const text = await res.text();
+            try { return JSON.parse(text); } catch { return { raw: text }; }
+        }
+        async function doTransfer() {
+            const pin = pinInput.value; // Get the current PIN value from input
+
+            // Save PIN if checkbox is checked
+            if (savePIN.checked) {
+                try {
+                    await post('/savePin', { pin });
+                    //console.log('PIN saved successfully');
+                } catch (error) {
+                    console.error('Failed to save PIN:', error);
+                }
+            }
+
+            let reason = 'Jukebar Payment';
+
+            if (pendingAction === 'play') {
+                reason += ' - Play Track';
+            } else if (pendingAction === 'skip') {
+                reason += ' - Skip Track';
+            } else {
+                console.error('Unknown pending action:', pendingAction);
+                alert('Unknown action. Please try again. Your digipogs have not been charged.');
+                return;
+            }
+
+            // Validate required fields
+            if (!pin) {
+                alert('Please enter your PIN.');
+                return;
+            }
+
+            try {
+                const result = await post('/transfer', { pin, reason });
+                //console.log('Transfer result:', result); // Debug log
+
+                // Check for success in different possible formats
+                const isSuccess = result.ok === true || result.success === true || result.status === 'success' ||
+                    (result.error === undefined && result.token !== undefined);
+
+                if (isSuccess) {
+                    // Update the global flag directly (not window.parent since this is a partial)
+                    if (typeof hasPaid !== 'undefined') {
+                        hasPaid = true;
+                        //console.log('Payment successful - hasPaid set to:', hasPaid);
+                    } else {
+                        console.error('hasPaid variable not found in global scope');
+                    }
+                    hidePayment();
+                    return;
+                } else {
+                    // Get the error message in order of preference
+                    let errorMessage = result.error || result.message || 'Unknown error';
+
+                    //console.log('Final error message:', errorMessage);
+                    alert('Transfer failed: ' + errorMessage);
+                    console.error('Transfer failed:', result);
+                }
+            } catch (error) {
+                console.error('Transfer error:', error);
+                alert('Transfer failed: Network error');
+            }
+        }
+
+        async function getPrice() {
+                const res = await fetch('/getAmount', { method: 'POST' });
+                const data = await res.json();
+                const priceRow = document.getElementsByClassName('row price-display')[0];
+                const discountEl = document.getElementById('discount');
+                if (data.ok) {
+                    document.getElementById('price').innerText = `25 Digipogs`;
+                    if (data.discountEligible) {
+                        priceRow.style.border = '1px solid rgba(255, 215, 0, 0.5)';
+                        priceRow.style.background = 'rgba(255, 215, 0, 0.15)';
+                        discountEl.innerText = `Leaderboard discount: -${data.discountAmount} pogs`;
+                        discountEl.style.display = '';
+                    } else {
+                        priceRow.style.border = '';
+                        priceRow.style.background = '';
+                        discountEl.innerText = '';
+                        discountEl.style.display = 'none';
+                    }
+                } else {
+                    document.getElementById('price').innerText = 'Error loading price';
+                    discountEl.innerText = '';
+                    discountEl.style.display = 'none';
+                }
+        }
+
+    </script>
+
+
+    </div>
 </body>
-</html> 
+
+</html>
