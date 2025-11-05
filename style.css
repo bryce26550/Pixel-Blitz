@@ -45,6 +45,31 @@ body {
     margin-top: 0;
 }
 
+/* Game Over Menu Styles */
+.game-over-title {
+    color: #ff4444 !important;
+    text-shadow: 2px 2px 4px rgba(255, 68, 68, 0.5);
+}
+
+.final-score {
+    color: white;
+    font-size: 24px;
+    margin: 20px 0;
+    font-weight: bold;
+}
+
+.payout-info {
+    color: #ffd700;
+    font-size: 18px;
+    margin: 15px 0;
+    font-weight: bold;
+}
+
+.payout-info span {
+    color: #ffed4a;
+}
+
+
 #restartBtn {
     background: #4CAF50;
     color: white;
@@ -61,7 +86,7 @@ body {
 }
 
 .hidden {
-    display: none;
+    display: none !important;
 }
 
 .payment-content {

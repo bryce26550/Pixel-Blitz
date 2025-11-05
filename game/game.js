@@ -3,35 +3,29 @@ class GameRenderer {
         this.game = game;
     }
 
-    render() {
-        const { ctx, width, height } = this.game;
-        
-        // Clear canvas
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
-        ctx.fillRect(0, 0, width, height);
+// In GameRenderer class, update the render method:
+render() {
+    const { ctx, width, height } = this.game;
+    
+    // Clear canvas
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+    ctx.fillRect(0, 0, width, height);
 
-        // Draw game objects
-        this.game.player.render(ctx);
-        this.game.bullets.forEach(bullet => bullet.render(ctx));
-        this.game.enemies.forEach(enemy => enemy.render(ctx));
-        this.game.shooters.forEach(shooter => shooter.render(ctx));
-        this.game.tanks.forEach(tank => tank.render(ctx));
-        this.game.sprinters.forEach(sprinter => sprinter.render(ctx));
-        this.game.bosses.forEach(boss => boss.render(ctx));
-        this.game.particles.forEach(particle => particle.render(ctx));
+    // Draw game objects
+    this.game.player.render(ctx);
+    this.game.bullets.forEach(bullet => bullet.render(ctx));
+    this.game.enemies.forEach(enemy => enemy.render(ctx));
+    this.game.shooters.forEach(shooter => shooter.render(ctx));
+    this.game.tanks.forEach(tank => tank.render(ctx));
+    this.game.sprinters.forEach(sprinter => sprinter.render(ctx));
+    this.game.bosses.forEach(boss => boss.render(ctx));
+    this.game.particles.forEach(particle => particle.render(ctx));
 
-        // Render UI
-        this.renderUI();
-
-        // Render menus based on game state
-        if (!this.game.started) {
-            this.renderStartMenu();
-        } else if (this.game.gamePaused && this.game.gamePausedReason === 'pause') {
-            this.renderPauseMenu();
-        } else if (this.game.showLevelUp) {
-            this.renderLevelUpScreen();
-        }
+    // Only render canvas UI if game is running
+    if (this.game.started && this.game.gameRunning) {
+        this.game.updateGameUI();
     }
+}
 
     renderUI() {
         const { ctx, width } = this.game;
@@ -65,68 +59,6 @@ class GameRenderer {
         ctx.fillRect(barX, expBarY, (this.game.exp / this.game.expToNextLevel) * barWidth, barHeight);
         ctx.fillStyle = 'white';
         ctx.fillText('Experience', barX, expBarY - 5);
-    }
-
-    renderStartMenu() {
-        const { ctx, width, height } = this.game;
-        
-        // Dim background
-        ctx.fillStyle = 'rgba(0,0,0,0.85)';
-        ctx.fillRect(0, 0, width, height);
-
-        const panelW = 600;
-        const panelH = 360;
-        const panelX = (width - panelW) / 2;
-        const panelY = (height - panelH) / 2;
-
-        // Rounded panel background
-        const r = 12;
-        ctx.fillStyle = 'rgba(20,20,30,0.95)';
-        ctx.beginPath();
-        ctx.moveTo(panelX + r, panelY);
-        ctx.lineTo(panelX + panelW - r, panelY);
-        ctx.quadraticCurveTo(panelX + panelW, panelY, panelX + panelW, panelY + r);
-        ctx.lineTo(panelX + panelW, panelY + panelH - r);
-        ctx.quadraticCurveTo(panelX + panelW, panelY + panelH, panelX + panelW - r, panelY + panelH);
-        ctx.lineTo(panelX + r, panelY + panelH);
-        ctx.quadraticCurveTo(panelX, panelY + panelH, panelX, panelY + panelH - r);
-        ctx.lineTo(panelX, panelY + r);
-        ctx.quadraticCurveTo(panelX, panelY, panelX + r, panelY);
-        ctx.closePath();
-        ctx.fill();
-
-        // Panel border
-        ctx.strokeStyle = 'rgba(255,255,255,0.08)';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-
-        // Title
-        ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 48px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText('NEO PIX', panelX + panelW / 2, panelY + 70);
-
-        // Subtitle
-        ctx.font = '16px Arial';
-        ctx.fillStyle = '#cccccc';
-        ctx.fillText('Survive waves, level up, and customize your ship', panelX + panelW / 2, panelY + 100);
-
-        // Player preview
-        this.renderPlayerPreview(panelX, panelY, panelW, panelH);
-
-        // Controls info
-        this.renderControlsInfo(panelX, panelY, panelW);
-
-        // Start button
-        this.renderStartButton(panelX, panelY, panelW, panelH);
-
-        // Footer
-        ctx.font = '12px Arial';
-        ctx.fillStyle = '#aaaaaa';
-        ctx.textAlign = 'right';
-        ctx.fillText('Mouse to aim • Customize before starting', panelX + panelW - 12, panelY + panelH - 12);
-
-        ctx.textAlign = 'left';
     }
 
     renderPlayerPreview(panelX, panelY, panelW, panelH) {
@@ -251,101 +183,6 @@ class GameRenderer {
         ctx.fillText('START GAME', btnX + btnW / 2, btnY + btnH / 2 + 8);
 
         this.game.uiRects.startButton = { x: btnX, y: btnY, w: btnW, h: btnH };
-    }
-
-    renderPauseMenu() {
-        const { ctx, width, height } = this.game;
-        
-        ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillRect(0, 0, width, height);
-
-        ctx.fillStyle = 'white';
-        ctx.font = 'bold 36px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText('PAUSED', width / 2, height / 2 - 80);
-
-        // Resume button
-        const btnW = 240;
-        const btnH = 46;
-        const btnX = width / 2 - btnW / 2;
-        const resumeY = height / 2 - 20;
-        
-        ctx.fillStyle = '#6dd36d';
-        ctx.fillRect(btnX, resumeY, btnW, btnH);
-        ctx.strokeStyle = 'rgba(0,0,0,0.3)';
-        ctx.strokeRect(btnX, resumeY, btnW, btnH);
-        ctx.fillStyle = '#062006';
-        ctx.font = '18px Arial';
-        ctx.fillText('RESUME', btnX + btnW / 2, resumeY + btnH / 2 + 6);
-
-        // Restart button
-        const restartY = resumeY + btnH + 12;
-        ctx.fillStyle = '#ffd54d';
-        ctx.fillRect(btnX, restartY, btnW, btnH);
-        ctx.strokeStyle = 'rgba(0,0,0,0.3)';
-        ctx.strokeRect(btnX, restartY, btnW, btnH);
-        ctx.fillStyle = '#222222';
-        ctx.fillText('RESTART', btnX + btnW / 2, restartY + btnH / 2 + 6);
-
-        this.game.uiRects.pause.resumeButton = { x: btnX, y: resumeY, w: btnW, h: btnH };
-        this.game.uiRects.pause.restartButton = { x: btnX, y: restartY, w: btnW, h: btnH };
-
-        ctx.textAlign = 'left';
-    }
-
-    renderLevelUpScreen() {
-        const { ctx, width, height } = this.game;
-        
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
-        ctx.fillRect(0, 0, width, height);
-
-        ctx.fillStyle = 'gold';
-        ctx.font = 'bold 32px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText('LEVEL UP!', width / 2, 140);
-
-        ctx.fillStyle = 'white';
-        ctx.font = '20px Arial';
-        ctx.fillText('Choose an upgrade:', width / 2, 180);
-
-        this.game.uiRects.upgradeOptions = [];
-
-                for (let i = 0; i < this.game.upgradeOptions.length; i++) {
-            const upgrade = this.game.upgradeOptions[i];
-            const y = 220 + i * 80;
-            const x = width / 2 - 220;
-            const w = 440;
-            const h = 64;
-
-            // Background for option
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.06)';
-            ctx.fillRect(x, y - 8, w, h);
-
-            // Store rect for click handling
-            this.game.uiRects.upgradeOptions.push({ x: x, y: y - 8, w: w, h: h });
-
-            // Upgrade text
-            ctx.fillStyle = 'white';
-            ctx.font = 'bold 18px Arial';
-            ctx.textAlign = 'left';
-            ctx.fillText(`${i + 1}. ${upgrade.name}`, x + 18, y + 18);
-            ctx.font = '14px Arial';
-            ctx.fillStyle = 'lightgray';
-            ctx.fillText(upgrade.description, x + 18, y + 40);
-
-            // Number badge
-            ctx.fillStyle = 'rgba(255,255,255,0.04)';
-            ctx.fillRect(x + w - 74, y + 12, 54, 28);
-            ctx.fillStyle = 'white';
-            ctx.textAlign = 'center';
-            ctx.fillText((i + 1).toString(), x + w - 74 + 27, y + 32);
-        }
-
-        ctx.fillStyle = 'yellow';
-        ctx.font = '16px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText('Click an option or press 1, 2, or 3', width / 2, 520);
-        ctx.textAlign = 'left';
     }
 
     createExplosion(x, y) {

@@ -100,19 +100,17 @@ app.post('/payIn', isAuthenticated, (req, res) => {
 
     console.log('Processing payment:', data);
 
-    // Create a promise to handle the async socket response
     const transferPromise = new Promise((resolve, reject) => {
         const timeout = setTimeout(() => {
             reject(new Error('Transfer timeout'));
         }, 10000);
 
-        // Listen for the response once
         socket.once('transferResponse', (response) => {
             clearTimeout(timeout);
+            console.log('Received transferResponse from Formbar:', response); // Debug line
             resolve(response);
         });
 
-        // Send the transfer request
         socket.emit('transferDigipogs', data);
     });
 
@@ -120,22 +118,26 @@ app.post('/payIn', isAuthenticated, (req, res) => {
         .then(response => {
             console.log('Transfer response:', response);
             if (response.success) {
+                console.log('Sending success response to client'); // Debug line
                 res.json({ ok: true, message: 'Payment successful' });
             } else {
+                console.log('Sending failure response to client:', response.message); // Debug line
                 res.json({ ok: false, error: response.message || 'Transfer failed' });
             }
         })
         .catch(error => {
             console.error('Transfer error:', error);
+            console.log('Sending error response to client'); // Debug line
             res.json({ ok: false, error: 'Transfer failed' });
         });
 });
+
 
 app.post('/payOut', isAuthenticated, (req, res) => {
     const { payOutAmount } = req.body; //gets payout amount
     const userId = req.session.token.id;
 
-    if(!payOutAmount || payOutAmount <= 0) {
+    if (!payOutAmount || payOutAmount <= 0) {
         return res.json({ ok: false, error: 'Invalid payout amount' });
     }
 
@@ -144,39 +146,39 @@ app.post('/payOut', isAuthenticated, (req, res) => {
         to: userId,
         amount: payOutAmount,
         pin: 2018,
-        reason: 'Game Winnings Payout' 
+        reason: 'Game Winnings Payout'
     };
 
     log('Processing payout:', data);
 
     //create a promise to handle async socket response
     const transferPromise = new Promise((resolve, reject) => {
-        const timeout =setTimeout(()=>{
+        const timeout = setTimeout(() => {
             reject(new Error('Transfer timeout'));
-        },10000);
+        }, 10000);
 
         //listen for the response once
-        socket.once('transferResponse', (response)=>{
+        socket.once('transferResponse', (response) => {
             clearTimeout(timeout);
             resolve(response);
         });
 
-    socket.emit('transferDigipogs', data);
-});
-
-transferPromise
-    .then(response => {
-        console.log('Payout response:', response);
-        if (response.success) {
-            res.json({ ok: true, message: 'Payout successful' });
-        } else {
-            res.json({ ok: false, error: response.message || 'Payout failed' });
-        }
-    })
-    .catch(error => {
-        console.error('Payout error:', error);
-        res.json({ ok: false, error: 'Payout failed' });
+        socket.emit('transferDigipogs', data);
     });
+
+    transferPromise
+        .then(response => {
+            console.log('Payout response:', response);
+            if (response.success) {
+                res.json({ ok: true, message: 'Payout successful' });
+            } else {
+                res.json({ ok: false, error: response.message || 'Payout failed' });
+            }
+        })
+        .catch(error => {
+            console.error('Payout error:', error);
+            res.json({ ok: false, error: 'Payout failed' });
+        });
 });
 
 // Optional: Save PIN feature

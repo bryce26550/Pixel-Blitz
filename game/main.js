@@ -11,6 +11,13 @@ function pay() {
 function hidePayment() {
     document.querySelector('.payment-content').style.display = 'none';
     document.querySelector('.payment-overlay').style.display = 'none';
+    
+    // Check if we need to return to pause menu
+    if (window.game && window.game.restartFromPause && !hasPaid) {
+        console.log('Payment cancelled, returning to pause menu');
+        window.game.restartFromPause = false; // Reset flag
+        window.game.showPauseMenu(); // Show pause menu again
+    }
 }
 
 async function post(path, body) {
@@ -35,29 +42,43 @@ async function doTransfer() {
         return;
     }
 
+    console.log('Sending payment request with PIN:', pin);
+
     try {
         const result = await post('/payIn', { pin });
-        console.log('Transfer result:', result);
+        console.log('Raw server response:', result);
 
-        if (result.ok) {
+        if (result.ok === true) {
             hasPaid = true;
             console.log('Payment successful - hasPaid set to:', hasPaid);
             hidePayment();
 
             if (window.game) {
-                window.game.startGame();
+                console.log('Calling game.startGame()...');
+                
+                // Check if this was a restart from pause menu
+                if (window.game.restartFromPause) {
+                    window.game.restartFromPause = false; // Reset flag
+                    window.game.restart(true); // Restart and begin immediately
+                } else {
+                    window.game.startGame(); // Normal start
+                }
+            } else {
+                console.error('window.game not found!');
             }
             return;
         } else {
             let errorMessage = result.error || result.message || 'Unknown error';
+            console.log('Payment failed with error:', errorMessage);
             alert('Payment failed: ' + errorMessage);
             console.error('Payment failed:', result);
         }
     } catch (error) {
-        console.error('Payment error:', error);
+        console.error('Network/parsing error:', error);
         alert('Payment failed: Network error');
     }
 }
+
 
 class Game {
     constructor() {
@@ -90,6 +111,7 @@ class Game {
         this.gameRunning = false;
         this.gamePaused = false;
         this.gamePausedReason = '';
+        this.restartFromPause = false
 
         this.waveNumber = 1;
         this.waveProgress = 0;
@@ -115,109 +137,117 @@ class Game {
             pause: { resumeButton: null, restartButton: null }
         };
 
+        this.renderer = new GameRenderer(this);
+
         this.showStartMenu(); // Show start menu initially
-
-
         this.setupEventListeners();
         this.gameLoop();
     }
 
     // Add these methods to your Game class:
 
-showStartMenu() {
-    this.hideAllMenus();
-    document.getElementById('startMenu').classList.remove('hidden');
-    this.updatePlayerPreview();
-}
-
-showPauseMenu() {
-    this.hideAllMenus();
-    document.getElementById('pauseMenu').classList.remove('hidden');
-}
-
-showLevelUpMenu() {
-    this.hideAllMenus();
-    document.getElementById('levelUpMenu').classList.remove('hidden');
-    this.populateUpgradeOptions();
-}
-
-hideAllMenus() {
-    const menuIds = ['startMenu', 'pauseMenu', 'levelUpMenu'];
-    menuIds.forEach(id => {
-        const element = document.getElementById(id);
-        if (element) element.classList.add('hidden');
-    });
-}
-
-updatePlayerPreview() {
-    const playerSprite = document.getElementById('playerSprite');
-    if (playerSprite) {
-        playerSprite.style.backgroundColor = this.player.color;
-        this.updatePlayerShape(playerSprite);
+    showStartMenu() {
+        this.hideAllMenus();
+        document.getElementById('startMenu').classList.remove('hidden');
+        this.updatePlayerPreview();
     }
-}
 
-updatePlayerShape(sprite) {
-    sprite.classList.remove('triangle-shape', 'circle-shape', 'square-shape');
-    
-    if (this.player.shapeIndex === 0) {
-        sprite.classList.add('triangle-shape');
-    } else if (this.player.shapeIndex === 1) {
-        sprite.classList.add('circle-shape');
-    } else {
-        sprite.classList.add('square-shape');
+    showPauseMenu() {
+        this.hideAllMenus();
+        document.getElementById('pauseMenu').classList.remove('hidden');
     }
-}
 
-populateUpgradeOptions() {
-    const upgradeContainer = document.getElementById('upgradeOptions');
-    if (!upgradeContainer) return;
-    
-    upgradeContainer.innerHTML = '';
-    
-    for (let i = 0; i < this.upgradeOptions.length; i++) {
-        const upgrade = this.upgradeOptions[i];
-        const optionDiv = document.createElement('div');
-        optionDiv.className = 'upgrade-option';
-        optionDiv.addEventListener('click', () => this.selectUpgrade(i));
-        
-        optionDiv.innerHTML = `
+    showLevelUpMenu() {
+        this.hideAllMenus();
+        document.getElementById('levelUpMenu').classList.remove('hidden');
+        this.populateUpgradeOptions();
+    }
+
+    hideAllMenus() {
+        console.log('hideAllMenus called'); // Debug line
+
+        const menuIds = ['startMenu', 'pauseMenu', 'levelUpMenu'];
+        menuIds.forEach(id => {
+            const element = document.getElementById(id);
+            if (element) {
+                console.log(`Hiding ${id}`); // Debug line
+                element.classList.add('hidden');
+            } else {
+                console.error(`Element ${id} not found!`);
+            }
+        });
+    }
+
+
+    updatePlayerPreview() {
+        const playerSprite = document.getElementById('playerSprite');
+        if (playerSprite) {
+            playerSprite.style.backgroundColor = this.player.color;
+            this.updatePlayerShape(playerSprite);
+        }
+    }
+
+    updatePlayerShape(sprite) {
+        sprite.classList.remove('triangle-shape', 'circle-shape', 'square-shape');
+
+        if (this.player.shapeIndex === 0) {
+            sprite.classList.add('triangle-shape');
+        } else if (this.player.shapeIndex === 1) {
+            sprite.classList.add('circle-shape');
+        } else {
+            sprite.classList.add('square-shape');
+        }
+    }
+
+    populateUpgradeOptions() {
+        const upgradeContainer = document.getElementById('upgradeOptions');
+        if (!upgradeContainer) return;
+
+        upgradeContainer.innerHTML = '';
+
+        for (let i = 0; i < this.upgradeOptions.length; i++) {
+            const upgrade = this.upgradeOptions[i];
+            const optionDiv = document.createElement('div');
+            optionDiv.className = 'upgrade-option';
+            optionDiv.addEventListener('click', () => this.selectUpgrade(i));
+
+            optionDiv.innerHTML = `
             <div class="upgrade-name">${upgrade.name}</div>
             <div class="upgrade-description">${upgrade.description}</div>
             <div class="upgrade-number">${i + 1}</div>
         `;
-        
-        upgradeContainer.appendChild(optionDiv);
-    }
-}
 
-updateGameUI() {
-    // Update all UI elements
-    const elements = {
-        'scoreValue': this.score,
-        'livesValue': this.lives,
-        'waveValue': this.waveNumber,
-        'levelValue': this.level,
-        'expValue': this.exp,
-        'expMaxValue': this.expToNextLevel,
-        'healthValue': this.player.health,
-        'healthMaxValue': this.player.maxHealth
-    };
-
-    for (const [id, value] of Object.entries(elements)) {
-        const element = document.getElementById(id);
-        if (element) element.textContent = value;
+            upgradeContainer.appendChild(optionDiv);
+        }
     }
 
-    // Update progress bars
-    const waveProgress = (this.waveProgress / this.waveRequirement) * 100;
-    const waveProgressFill = document.getElementById('waveProgressFill');
-    if (waveProgressFill) waveProgressFill.style.width = waveProgress + '%';
+    updateGameUI() {
+        // Update all UI elements
+        const elements = {
+            'scoreValue': this.score,
+            'livesValue': this.lives,
+            'waveValue': this.waveNumber,
+            'levelValue': this.level,
+            'expValue': this.exp,
+            'expMaxValue': this.expToNextLevel,
+            'healthValue': this.player.health,
+            'healthMaxValue': this.player.maxHealth
+        };
 
-    const expProgress = (this.exp / this.expToNextLevel) * 100;
-    const expProgressFill = document.getElementById('expProgressFill');
-    if (expProgressFill) expProgressFill.style.width = expProgress + '%';
-}
+        for (const [id, value] of Object.entries(elements)) {
+            const element = document.getElementById(id);
+            if (element) element.textContent = value;
+        }
+
+        // Update progress bars
+        const waveProgress = (this.waveProgress / this.waveRequirement) * 100;
+        const waveProgressFill = document.getElementById('waveProgressFill');
+        if (waveProgressFill) waveProgressFill.style.width = waveProgress + '%';
+
+        const expProgress = (this.exp / this.expToNextLevel) * 100;
+        const expProgressFill = document.getElementById('expProgressFill');
+        if (expProgressFill) expProgressFill.style.width = expProgress + '%';
+    }
 
 
     setupEventListeners() {
@@ -264,174 +294,234 @@ updateGameUI() {
             const rect = this.canvas.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
-            this.handleCanvasClick(x, y, e);
+            // this.handleCanvasClick(x, y, e);
         });
 
         const restartBtn = document.getElementById('restartBtn');
         if (restartBtn) {
             restartBtn.addEventListener('click', async () => {
-                if (!this.gameRunning && this.payOutAmount > 0) {
-                    console.log('Restart clicked - processing automatic payout...');
+                console.log('Game over restart button clicked');
+
+                // Payout should already be processed in gameOver(), but double-check
+                if (this.payOutAmount > 0) {
                     await this.automaticPayout();
                 }
-                // pay();
-                this.restart();
+
+                // Hide game over menu
+                document.getElementById('gameOver').classList.add('hidden');
+
+                // Reset to start menu state and show payment
+                this.quitToMenu();
+                pay();
             });
         }
 
         // Add these to your setupEventListeners() method:
 
-// Start button
-const startBtn = document.getElementById('startBtn');
-if (startBtn) {
-    startBtn.addEventListener('click', () => {
+        // Start button
+        const startBtn = document.getElementById('startBtn');
+        if (startBtn) {
+            startBtn.addEventListener('click', () => {
+                pay();
+            });
+        }
+
+        // Resume button
+        const resumeBtn = document.getElementById('resumeBtn');
+        if (resumeBtn) {
+            resumeBtn.addEventListener('click', () => {
+                this.togglePause();
+            });
+        }
+
+        // Pause restart button
+const pauseRestartBtn = document.getElementById('pauseRestartBtn');
+if (pauseRestartBtn) {
+    pauseRestartBtn.addEventListener('click', async () => {
+        console.log('Pause restart button clicked');
+        
+        // Process payout if there are winnings
+        if (this.payOutAmount > 0) {
+            await this.automaticPayout();
+        }
+        
+        // Set a flag so we know we came from pause menu
+        this.restartFromPause = true;
+        
+        // Show payment prompt
         pay();
     });
 }
 
-// Resume button
-const resumeBtn = document.getElementById('resumeBtn');
-if (resumeBtn) {
-    resumeBtn.addEventListener('click', () => {
-        this.togglePause();
-    });
-}
-
-// Pause restart button
-const pauseRestartBtn = document.getElementById('pauseRestartBtn');
-if (pauseRestartBtn) {
-    pauseRestartBtn.addEventListener('click', () => {
-        if (this.payOutAmount > 0) {
-            this.automaticPayout().then(() => {
-                pay();
-                this.restart(true);
+        // Quit button
+        const quitBtn = document.getElementById('quitBtn');
+        if (quitBtn) {
+            quitBtn.addEventListener('click', () => {
+                this.quitToMenu();
             });
-        } else {
-            pay();
-            this.restart(true);
         }
-    });
-}
 
-// Quit button
-const quitBtn = document.getElementById('quitBtn');
-if (quitBtn) {
-    quitBtn.addEventListener('click', () => {
+        // Add this to your setupEventListeners() method if it's missing:
+        const mainMenuBtn = document.getElementById('mainMenuBtn'); // or quitBtn if you're using same ID
+if (mainMenuBtn) {
+    mainMenuBtn.addEventListener('click', () => {
+        console.log('Game over main menu button clicked');
+        
+        // Hide game over menu explicitly
+        document.getElementById('gameOver').classList.add('hidden');
+        
+        // Go to main menu
         this.quitToMenu();
     });
 }
 
-// Player customization buttons
-const colorBtn = document.getElementById('colorBtn');
-if (colorBtn) {
-    colorBtn.addEventListener('click', () => {
-        this.player.cycleColor();
-        this.updatePlayerPreview();
-    });
-}
 
-const shapeBtn = document.getElementById('shapeBtn');
-if (shapeBtn) {
-    shapeBtn.addEventListener('click', () => {
-        this.player.cycleShape();
-        this.updatePlayerPreview();
-    });
-}
+        // Player customization buttons
+        const colorBtn = document.getElementById('colorBtn');
+        if (colorBtn) {
+            colorBtn.addEventListener('click', () => {
+                this.player.cycleColor();
+                this.updatePlayerPreview();
+            });
+        }
 
-// Player preview click
-const playerPreview = document.getElementById('playerPreview');
-if (playerPreview) {
-    playerPreview.addEventListener('click', () => {
-        this.player.cycleColor();
-        this.updatePlayerPreview();
-    });
-}
+        const shapeBtn = document.getElementById('shapeBtn');
+        if (shapeBtn) {
+            shapeBtn.addEventListener('click', () => {
+                this.player.cycleShape();
+                this.updatePlayerPreview();
+            });
+        }
+
+        // Player preview click
+        const playerPreview = document.getElementById('playerPreview');
+        if (playerPreview) {
+            playerPreview.addEventListener('click', () => {
+                this.player.cycleColor();
+                this.updatePlayerPreview();
+            });
+        }
 
     }
 
     quitToMenu() {
+    console.log('quitToMenu called');
+    
+    // Reset game state
     this.started = false;
     this.gameRunning = false;
     this.gamePaused = false;
-    this.showStartMenu();
+    this.showLevelUp = false;
+    
+    // Reset payment
     hasPaid = false;
+    
+    // Explicitly hide game over menu
+    const gameOverMenu = document.getElementById('gameOver');
+    if (gameOverMenu) {
+        gameOverMenu.classList.add('hidden');
+    }
+    
+    // Hide all other menus and show start menu
+    this.hideAllMenus();
+    this.showStartMenu();
+    
+    console.log('Should be showing start menu now');
 }
 
 
+
     startGame() {
+        console.log('=== startGame() called ===');
+        console.log('hasPaid:', hasPaid);
+
         if (!hasPaid) {
             console.log('Payment required before starting game');
             return;
         }
+
+        console.log('Payment verified, starting game...');
 
         this.started = true;
         this.gameRunning = true;
         this.gamePaused = false;
         this.showLevelUp = false;
         this.gamePausedReason = '';
+
+        console.log('Hiding all menus...');
+        this.hideAllMenus();
+
+        console.log('Calling restart...');
         this.restart(true);
     }
+
+
 
     togglePause() {
         this.gamePaused = !this.gamePaused;
         this.gamePausedReason = this.gamePaused ? 'pause' : '';
-    }
 
+        if (this.gamePaused) {
+            this.showPauseMenu();
+        } else {
+            this.hideAllMenus();
+        }
+    }
     pointInRect(x, y, rect) {
         if (!rect) return false;
         return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
     }
 
-    handleCanvasClick(x, y, originalEvent) {
-        if (!this.started) {
-            if (this.pointInRect(x, y, this.uiRects.startButton)) {
-                pay();
-                this.startGame();
-                return;
-            }
-            if (this.pointInRect(x, y, this.uiRects.colorBox)) {
-                this.player.cycleColor();
-                return;
-            }
-            if (this.pointInRect(x, y, this.uiRects.shapeBox)) {
-                this.player.cycleShape();
-                return;
-            }
-            if (this.pointInRect(x, y, this.uiRects.previewBox)) {
-                this.player.cycleColor();
-                return;
-            }
-            return;
-        }
+    // handleCanvasClick(x, y, originalEvent) {
+    //     if (!this.started) {
+    //         if (this.pointInRect(x, y, this.uiRects.startButton)) {
+    //             pay();
+    //             this.startGame();
+    //             return;
+    //         }
+    //         if (this.pointInRect(x, y, this.uiRects.colorBox)) {
+    //             this.player.cycleColor();
+    //             return;
+    //         }
+    //         if (this.pointInRect(x, y, this.uiRects.shapeBox)) {
+    //             this.player.cycleShape();
+    //             return;
+    //         }
+    //         if (this.pointInRect(x, y, this.uiRects.previewBox)) {
+    //             this.player.cycleColor();
+    //             return;
+    //         }
+    //         return;
+    //     }
 
-        if (this.showLevelUp) {
-            for (let i = 0; i < (this.uiRects.upgradeOptions || []).length; i++) {
-                const rect = this.uiRects.upgradeOptions[i];
-                if (this.pointInRect(x, y, rect)) {
-                    this.selectUpgrade(i);
-                    return;
-                }
-            }
-            return;
-        }
+    //     if (this.showLevelUp) {
+    //         for (let i = 0; i < (this.uiRects.upgradeOptions || []).length; i++) {
+    //             const rect = this.uiRects.upgradeOptions[i];
+    //             if (this.pointInRect(x, y, rect)) {
+    //                 this.selectUpgrade(i);
+    //                 return;
+    //             }
+    //         }
+    //         return;
+    //     }
 
-        if (this.gamePaused && this.gamePausedReason === 'pause') {
-            if (this.pointInRect(x, y, this.uiRects.pause.resumeButton)) {
-                this.togglePause();
-                return;
-            }
-            if (this.pointInRect(x, y, this.uiRects.pause.restartButton)) {
-                pay();
-                this.restart(true);
-                return;
-            }
-            return;
-        }
+    //     if (this.gamePaused && this.gamePausedReason === 'pause') {
+    //         if (this.pointInRect(x, y, this.uiRects.pause.resumeButton)) {
+    //             this.togglePause();
+    //             return;
+    //         }
+    //         if (this.pointInRect(x, y, this.uiRects.pause.restartButton)) {
+    //             pay();
+    //             this.restart(true);
+    //             return;
+    //         }
+    //         return;
+    //     }
 
-        if (originalEvent && originalEvent.button === 0) {
-            this.player.shoot(this.bullets, this.mouseX, this.mouseY);
-        }
-    }
+    //     if (originalEvent && originalEvent.button === 0) {
+    //         this.player.shoot(this.bullets, this.mouseX, this.mouseY);
+    //     }
+    // }
 
     update(deltaTime) {
         if (!this.started) return;
@@ -517,6 +607,7 @@ if (playerPreview) {
             this.gamePaused = true;
             this.gamePausedReason = 'levelup';
             this.generateUpgradeOptions();
+            this.showLevelUpMenu(); // Show HTML level up menu
         }
     }
 
@@ -553,6 +644,7 @@ if (playerPreview) {
             this.gamePaused = false;
             this.gamePausedReason = '';
             this.upgradeOptions = [];
+            this.hideAllMenus(); // Hide menus when resuming
         }
     }
 
@@ -844,15 +936,29 @@ if (playerPreview) {
     }
 
     async gameOver() {
-        this.gameRunning = false;
+    this.gameRunning = false;
 
-        console.log('Game over - processing automatic payout...');
-        await this.automaticPayout();
+    console.log('Game over - processing automatic payout...');
+    const payoutAmount = this.payOutAmount; // Store amount before payout
+    await this.automaticPayout();
 
-        document.getElementById('finalScore').textContent = this.score;
-        document.getElementById('payOutAmount').textContent = this.payOutAmount;
-        document.getElementById('gameOver').classList.remove('hidden');
+    // Update display elements
+    const finalScoreEl = document.getElementById('finalScore');
+    const payOutAmountEl = document.getElementById('payOutAmount');
+    
+    if (finalScoreEl) finalScoreEl.textContent = this.score;
+    if (payOutAmountEl) payOutAmountEl.textContent = payoutAmount; // Show original amount earned
+    
+    // Show game over menu
+    const gameOverMenu = document.getElementById('gameOver');
+    if (gameOverMenu) {
+        gameOverMenu.classList.remove('hidden');
+        console.log('Game over menu should be visible');
+    } else {
+        console.error('Game over menu element not found!');
     }
+}
+
 
     restart(startImmediately = false) {
         hasPaid = false;
@@ -888,8 +994,26 @@ if (playerPreview) {
     }
 
     render() {
-        this.renderer.render();
+        // Clear canvas
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+        this.ctx.fillRect(0, 0, this.width, this.height);
+
+        // Draw game objects
+        this.player.render(this.ctx);
+        this.bullets.forEach(bullet => bullet.render(this.ctx));
+        this.enemies.forEach(enemy => enemy.render(this.ctx));
+        this.shooters.forEach(shooter => shooter.render(this.ctx));
+        this.tanks.forEach(tank => tank.render(this.ctx));
+        this.sprinters.forEach(sprinter => sprinter.render(this.ctx));
+        this.bosses.forEach(boss => boss.render(this.ctx));
+        this.particles.forEach(particle => particle.render(this.ctx));
+
+        // Update UI if game is running
+        if (this.started && this.gameRunning) {
+            this.updateGameUI();
+        }
     }
+
 
     gameLoop(currentTime = 0) {
         const deltaTime = currentTime - this.lastTime;

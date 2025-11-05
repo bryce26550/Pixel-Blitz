@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Neo Pix</title>
+    <title>Pixel Blitz</title>
     <link rel="stylesheet" href="/style.css">
 </head>
 
@@ -39,7 +39,7 @@
     <!-- Start Menu -->
     <div id="startMenu" class="menu-overlay">
         <div class="menu-panel">
-            <h1>NEO PIX</h1>
+            <h1>Pixel Blitz</h1>
             <p class="subtitle">Survive waves, level up, and customize your ship</p>
             
             <div class="menu-content">
@@ -62,7 +62,7 @@
                     <div class="control-list">
                         <div class="control-item">Move: WASD / Arrow Keys</div>
                         <div class="control-item">Aim: Move mouse</div>
-                        <div class="control-item">Shoot: Space or Left-Click</div>
+                        <div class="control-item">Shoot: Space</div>
                         <div class="control-item">Pause: ESC</div>
                     </div>
                 </div>
@@ -96,6 +96,20 @@
             <p class="level-up-hint">Click an option or press 1, 2, or 3</p>
         </div>
     </div>
+
+    <!-- ADD THIS: Game Over Menu -->
+    <div id="gameOver" class="menu-overlay hidden">
+        <div class="menu-panel">
+            <h1 class="game-over-title">GAME OVER!</h1>
+            <p class="final-score">Final Score: <span id="finalScore">0</span></p>
+            <p class="payout-info">Winnings Earned: <span id="payOutAmount">0</span> Digipogs</p>
+            <div class="menu-buttons">
+                <button id="restartBtn" class="primary-btn">PLAY AGAIN</button>
+                <button id="mainMenuBtn" class="secondary-btn">MAIN MENU</button>
+            </div>
+        </div>
+    </div>
+    
 </div>
 
 <!-- Load JavaScript files in the correct order -->
@@ -129,52 +143,6 @@
             </div>
         </div>
     </div>
-
-    <script>
-        const pinInput = document.getElementById('pin');
-
-        async function doTransfer() {
-            const pin = pinInput.value; // Get the current PIN value from input
-
-            // Validate required fields
-            if (!pin) {
-                alert('Please enter your PIN.');
-                return;
-            }
-
-            try {
-                const result = await post('/payIn', { pin });
-
-                // Check for success in different possible formats
-                const isSuccess = result.ok === true || result.success === true || result.status === 'success' ||
-                    (result.error === undefined && result.token !== undefined);
-
-                if (isSuccess) {
-                    // Update the global flag directly (not window.parent since this is a partial)
-                    if (typeof hasPaid !== 'undefined') {
-                        hasPaid = true;
-                        //console.log('Payment successful - hasPaid set to:', hasPaid);
-                    } else {
-                        console.error('hasPaid variable not found in global scope');
-                    }
-                    hidePayment();
-                    return;
-                } else {
-                    // Get the error message in order of preference
-                    let errorMessage = result.error || result.message || 'Unknown error';
-
-                    //console.log('Final error message:', errorMessage);
-                    alert('Transfer failed: ' + errorMessage);
-                    console.error('Transfer failed:', result);
-                }
-            } catch (error) {
-                console.error('Transfer error:', error);
-                alert('Transfer failed: Network error');
-            }
-        }
-
-    </script>
-
 
     </div>
 </body>
