@@ -20,7 +20,7 @@ const db = new sqlite3.Database('./db/database.db', (err) => {
 
 //constants
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3500;
 const SESSION_SECRET = process.env.SESSION_SECRET || 'your_secret_key';
 const AUTH_URL = process.env.AUTH_URL || 'http://localhost:420/oauth';
 const THIS_URL = process.env.THIS_URL || `http://localhost:${PORT}`;
@@ -92,8 +92,8 @@ app.post('/payIn', isAuthenticated, (req, res) => {
 
     const data = {
         from: userId,
-        to: 1, // Replace with 27 when running official server
-        amount: 1,
+        to: 27, // Replace with correct recipient ID
+        amount: 25,
         pin: parseInt(pin),
         reason: 'Game Entry Fee'
     };
@@ -142,7 +142,7 @@ app.post('/payOut', isAuthenticated, (req, res) => {
     }
 
     const data = {
-        from: 1, // Replace with 27 when running official server
+        from: 27, // Replace with 27 when running official server
         to: userId,
         amount: payOutAmount,
         pin: 2018,
