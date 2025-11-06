@@ -92,7 +92,7 @@ app.post('/payIn', isAuthenticated, (req, res) => {
 
     const data = {
         from: userId,
-        to: 27, // Replace with correct recipient ID
+        to: 27, // Replace with 27 when running official server
         amount: 25,
         pin: parseInt(pin),
         reason: 'Game Entry Fee'
