@@ -19,7 +19,7 @@ const db = new sqlite3.Database('./db/database.db', (err) => {
 
 //constants
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3500;
 const SESSION_SECRET = process.env.SESSION_SECRET || 'your_secret_key';
 const AUTH_URL = process.env.AUTH_URL || 'http://localhost:420/oauth';
 const THIS_URL = process.env.THIS_URL || `http://localhost:${PORT}`;
@@ -83,7 +83,7 @@ app.get('/logout', (req, res) => {
 app.get('/sendpogs', isAuthenticated, (req, res) => {
     const data = {
         from: 3,
-        to: 1,
+        to: 27,
         amount: 25,
         pin: 1234,
         reason: 'test pog transfer',
@@ -119,7 +119,7 @@ app.post('/transfer', isAuthenticated, (req, res) => {
 
     const data = {
         from: userId,
-        to: 1, // Replace with correct recipient ID
+        to: 27, // Replace with correct recipient ID
         amount: 25,
         pin: parseInt(pin),
         reason: reason || 'Game Entry Fee'
