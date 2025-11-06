@@ -11,7 +11,7 @@ function pay() {
 function hidePayment() {
     document.querySelector('.payment-content').style.display = 'none';
     document.querySelector('.payment-overlay').style.display = 'none';
-    
+
     // Check if we need to return to pause menu
     if (window.game && window.game.restartFromPause && !hasPaid) {
         console.log('Payment cancelled, returning to pause menu');
@@ -55,7 +55,7 @@ async function doTransfer() {
 
             if (window.game) {
                 console.log('Calling game.startGame()...');
-                
+
                 // Check if this was a restart from pause menu
                 if (window.game.restartFromPause) {
                     window.game.restartFromPause = false; // Reset flag
@@ -182,10 +182,58 @@ class Game {
     updatePlayerPreview() {
         const playerSprite = document.getElementById('playerSprite');
         if (playerSprite) {
+            // Clear any existing shape classes first
+            playerSprite.classList.remove('triangle-shape', 'circle-shape', 'square-shape');
+
+            // Set the background to player color (this is the ship body)
             playerSprite.style.backgroundColor = this.player.color;
-            this.updatePlayerShape(playerSprite);
+
+            // Create or update the inner shape element
+            let innerShape = playerSprite.querySelector('.inner-shape');
+            if (!innerShape) {
+                innerShape = document.createElement('div');
+                innerShape.className = 'inner-shape';
+                playerSprite.appendChild(innerShape);
+            }
+
+            // Style the inner shape (always white like in-game)
+            innerShape.style.backgroundColor = '#ffffff';
+            innerShape.style.position = 'absolute';
+            innerShape.style.top = '50%';
+            innerShape.style.left = '50%';
+            innerShape.style.transform = 'translate(-50%, -50%)';
+
+            // Apply the appropriate shape
+            innerShape.classList.remove('triangle-shape', 'circle-shape', 'square-shape');
+
+            if (this.player.shapeIndex === 0) {
+                // Triangle
+                innerShape.classList.add('triangle-shape');
+                innerShape.style.width = '16px';
+                innerShape.style.height = '16px';
+            } else if (this.player.shapeIndex === 1) {
+                // Circle
+                innerShape.classList.add('circle-shape');
+                innerShape.style.width = '12px';
+                innerShape.style.height = '12px';
+            } else {
+                // Square
+                innerShape.classList.add('square-shape');
+                innerShape.style.width = '18px';
+                innerShape.style.height = '18px';
+            }
         }
+
+        const colorNames = ['Green', 'Blue', 'Red', 'Purple', 'Cyan'];
+        const shapeNames = ['Triangle', 'Circle', 'Square'];
+
+        const colorNameEl = document.getElementById('colorName');
+        const shapeNameEl = document.getElementById('shapeName');
+
+        if (colorNameEl) colorNameEl.textContent = colorNames[this.player.colorIndex] || 'Unknown';
+        if (shapeNameEl) shapeNameEl.textContent = shapeNames[this.player.shapeIndex] || 'Unknown';
     }
+
 
     updatePlayerShape(sprite) {
         sprite.classList.remove('triangle-shape', 'circle-shape', 'square-shape');
@@ -335,23 +383,23 @@ class Game {
         }
 
         // Pause restart button
-const pauseRestartBtn = document.getElementById('pauseRestartBtn');
-if (pauseRestartBtn) {
-    pauseRestartBtn.addEventListener('click', async () => {
-        console.log('Pause restart button clicked');
-        
-        // Process payout if there are winnings
-        if (this.payOutAmount > 0) {
-            await this.automaticPayout();
+        const pauseRestartBtn = document.getElementById('pauseRestartBtn');
+        if (pauseRestartBtn) {
+            pauseRestartBtn.addEventListener('click', async () => {
+                console.log('Pause restart button clicked');
+
+                // Process payout if there are winnings
+                if (this.payOutAmount > 0) {
+                    await this.automaticPayout();
+                }
+
+                // Set a flag so we know we came from pause menu
+                this.restartFromPause = true;
+
+                // Show payment prompt
+                pay();
+            });
         }
-        
-        // Set a flag so we know we came from pause menu
-        this.restartFromPause = true;
-        
-        // Show payment prompt
-        pay();
-    });
-}
 
         // Quit button
         const quitBtn = document.getElementById('quitBtn');
@@ -363,17 +411,17 @@ if (pauseRestartBtn) {
 
         // Add this to your setupEventListeners() method if it's missing:
         const mainMenuBtn = document.getElementById('mainMenuBtn'); // or quitBtn if you're using same ID
-if (mainMenuBtn) {
-    mainMenuBtn.addEventListener('click', () => {
-        console.log('Game over main menu button clicked');
-        
-        // Hide game over menu explicitly
-        document.getElementById('gameOver').classList.add('hidden');
-        
-        // Go to main menu
-        this.quitToMenu();
-    });
-}
+        if (mainMenuBtn) {
+            mainMenuBtn.addEventListener('click', () => {
+                console.log('Game over main menu button clicked');
+
+                // Hide game over menu explicitly
+                document.getElementById('gameOver').classList.add('hidden');
+
+                // Go to main menu
+                this.quitToMenu();
+            });
+        }
 
 
         // Player customization buttons
@@ -405,29 +453,29 @@ if (mainMenuBtn) {
     }
 
     quitToMenu() {
-    console.log('quitToMenu called');
-    
-    // Reset game state
-    this.started = false;
-    this.gameRunning = false;
-    this.gamePaused = false;
-    this.showLevelUp = false;
-    
-    // Reset payment
-    hasPaid = false;
-    
-    // Explicitly hide game over menu
-    const gameOverMenu = document.getElementById('gameOver');
-    if (gameOverMenu) {
-        gameOverMenu.classList.add('hidden');
+        console.log('quitToMenu called');
+
+        // Reset game state
+        this.started = false;
+        this.gameRunning = false;
+        this.gamePaused = false;
+        this.showLevelUp = false;
+
+        // Reset payment
+        hasPaid = false;
+
+        // Explicitly hide game over menu
+        const gameOverMenu = document.getElementById('gameOver');
+        if (gameOverMenu) {
+            gameOverMenu.classList.add('hidden');
+        }
+
+        // Hide all other menus and show start menu
+        this.hideAllMenus();
+        this.showStartMenu();
+
+        console.log('Should be showing start menu now');
     }
-    
-    // Hide all other menus and show start menu
-    this.hideAllMenus();
-    this.showStartMenu();
-    
-    console.log('Should be showing start menu now');
-}
 
 
 
@@ -471,57 +519,6 @@ if (mainMenuBtn) {
         if (!rect) return false;
         return x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h;
     }
-
-    // handleCanvasClick(x, y, originalEvent) {
-    //     if (!this.started) {
-    //         if (this.pointInRect(x, y, this.uiRects.startButton)) {
-    //             pay();
-    //             this.startGame();
-    //             return;
-    //         }
-    //         if (this.pointInRect(x, y, this.uiRects.colorBox)) {
-    //             this.player.cycleColor();
-    //             return;
-    //         }
-    //         if (this.pointInRect(x, y, this.uiRects.shapeBox)) {
-    //             this.player.cycleShape();
-    //             return;
-    //         }
-    //         if (this.pointInRect(x, y, this.uiRects.previewBox)) {
-    //             this.player.cycleColor();
-    //             return;
-    //         }
-    //         return;
-    //     }
-
-    //     if (this.showLevelUp) {
-    //         for (let i = 0; i < (this.uiRects.upgradeOptions || []).length; i++) {
-    //             const rect = this.uiRects.upgradeOptions[i];
-    //             if (this.pointInRect(x, y, rect)) {
-    //                 this.selectUpgrade(i);
-    //                 return;
-    //             }
-    //         }
-    //         return;
-    //     }
-
-    //     if (this.gamePaused && this.gamePausedReason === 'pause') {
-    //         if (this.pointInRect(x, y, this.uiRects.pause.resumeButton)) {
-    //             this.togglePause();
-    //             return;
-    //         }
-    //         if (this.pointInRect(x, y, this.uiRects.pause.restartButton)) {
-    //             pay();
-    //             this.restart(true);
-    //             return;
-    //         }
-    //         return;
-    //     }
-
-    //     if (originalEvent && originalEvent.button === 0) {
-    //         this.player.shoot(this.bullets, this.mouseX, this.mouseY);
-    //     }
-    // }
 
     update(deltaTime) {
         if (!this.started) return;
@@ -936,31 +933,36 @@ if (mainMenuBtn) {
     }
 
     async gameOver() {
-    this.gameRunning = false;
+        this.gameRunning = false;
 
-    console.log('Game over - processing automatic payout...');
-    const payoutAmount = this.payOutAmount; // Store amount before payout
-    await this.automaticPayout();
+        console.log('Game over - processing automatic payout...');
+        const payoutAmount = this.payOutAmount; // Store amount before payout
+        await this.automaticPayout();
 
-    // Update display elements
-    const finalScoreEl = document.getElementById('finalScore');
-    const payOutAmountEl = document.getElementById('payOutAmount');
-    
-    if (finalScoreEl) finalScoreEl.textContent = this.score;
-    if (payOutAmountEl) payOutAmountEl.textContent = payoutAmount; // Show original amount earned
-    
-    // Show game over menu
-    const gameOverMenu = document.getElementById('gameOver');
-    if (gameOverMenu) {
-        gameOverMenu.classList.remove('hidden');
-        console.log('Game over menu should be visible');
-    } else {
-        console.error('Game over menu element not found!');
+        // Update display elements
+        const finalScoreEl = document.getElementById('finalScore');
+        const payOutAmountEl = document.getElementById('payOutAmount');
+
+        if (finalScoreEl) finalScoreEl.textContent = this.score;
+        if (payOutAmountEl) payOutAmountEl.textContent = payoutAmount; // Show original amount earned
+
+        // Show game over menu
+        const gameOverMenu = document.getElementById('gameOver');
+        if (gameOverMenu) {
+            gameOverMenu.classList.remove('hidden');
+            console.log('Game over menu should be visible');
+        } else {
+            console.error('Game over menu element not found!');
+        }
     }
-}
 
 
     restart(startImmediately = false) {
+        // Store current customization before creating new player
+        const savedColor = this.player.color;
+        const savedColorIndex = this.player.colorIndex;
+        const savedShapeIndex = this.player.shapeIndex;
+
         hasPaid = false;
         this.bullets = [];
         this.enemies = [];
@@ -985,7 +987,12 @@ if (mainMenuBtn) {
         this.gamePausedReason = '';
         this.gameRunning = startImmediately;
         this.started = startImmediately || this.started;
+
+        // Create new player and restore customization
         this.player = new Player(this.width / 2, this.height - 50);
+        this.player.color = savedColor;
+        this.player.colorIndex = savedColorIndex;
+        this.player.shapeIndex = savedShapeIndex;
         this.player.game = this;
 
         document.getElementById('scoreValue').textContent = this.score;
