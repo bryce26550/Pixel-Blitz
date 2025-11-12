@@ -1,5 +1,4 @@
 // Global variables
-let hasPaid = false;
 let pendingAction = 'play';
 
 // Payment functions
@@ -49,9 +48,9 @@ async function doTransfer() {
         console.log('Raw server response:', result);
 
         if (result.ok === true) {
-            hasPaid = true;
-            console.log('Payment successful - hasPaid set to:', hasPaid);
             hidePayment();
+
+            await new Promise(resolve => setTimeout(resolve, 100));
 
             if (window.game) {
                 console.log('Calling game.startGame()...');
@@ -78,6 +77,27 @@ async function doTransfer() {
         alert('Payment failed: Network error');
     }
 }
+
+async function checkPaymentStatus() {
+    try {
+        console.log('Checking payment status with server...');
+        const result = await post('/checkPayment', {});
+        
+        // Debug the exact response
+        console.log('Raw server response:', result);
+        console.log('Type of result:', typeof result);
+        console.log('result.hasPaid:', result.hasPaid);
+        console.log('Type of result.hasPaid:', typeof result.hasPaid);
+        console.log('result.hasPaid === true:', result.hasPaid === true);
+        
+        return result.hasPaid === true;
+    } catch (error) {
+        console.error('Payment check failed:', error);
+        return false;
+    }
+}
+
+
 
 
 class Game {
@@ -224,7 +244,7 @@ class Game {
             }
         }
 
-        const colorNames = ['Green', 'Blue', 'Red', 'Purple', 'Cyan'];
+        const colorNames = ['Green', 'Blue', 'Purple', 'Cyan', 'Orange', 'Red'];
         const shapeNames = ['Triangle', 'Circle', 'Square'];
 
         const colorNameEl = document.getElementById('colorName');
@@ -462,7 +482,7 @@ class Game {
         this.showLevelUp = false;
 
         // Reset payment
-        hasPaid = false;
+        // hasPaid = false;
 
         // Explicitly hide game over menu
         const gameOverMenu = document.getElementById('gameOver');
@@ -479,14 +499,18 @@ class Game {
 
 
 
-    startGame() {
+    async startGame() {
         console.log('=== startGame() called ===');
-        console.log('hasPaid:', hasPaid);
 
-        if (!hasPaid) {
-            console.log('Payment required before starting game');
+        const hasValidPayment = await checkPaymentStatus();
+
+        if (!hasValidPayment) {
+            console.log('Payment verification failed');
+            pay(); // Show payment dialog
             return;
         }
+
+        console.log('Payment verified, starting game...');
 
         console.log('Payment verified, starting game...');
 
@@ -963,7 +987,7 @@ class Game {
         const savedColorIndex = this.player.colorIndex;
         const savedShapeIndex = this.player.shapeIndex;
 
-        hasPaid = false;
+        // hasPaid = false;
         this.bullets = [];
         this.enemies = [];
         this.shooters = [];
