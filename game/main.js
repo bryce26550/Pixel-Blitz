@@ -12,7 +12,7 @@ function hidePayment() {
     document.querySelector('.payment-overlay').style.display = 'none';
 
     // Check if we need to return to pause menu
-    if (window.game && window.game.restartFromPause && !hasPaid) {
+    if (window.game && window.game.restartFromPause) {
         console.log('Payment cancelled, returning to pause menu');
         window.game.restartFromPause = false; // Reset flag
         window.game.showPauseMenu(); // Show pause menu again
@@ -78,34 +78,13 @@ async function doTransfer() {
     }
 }
 
-async function checkPaymentStatus() {
-    try {
-        console.log('Checking payment status with server...');
-        const result = await post('/checkPayment', {});
-        
-        // Debug the exact response
-        console.log('Raw server response:', result);
-        console.log('Type of result:', typeof result);
-        console.log('result.hasPaid:', result.hasPaid);
-        console.log('Type of result.hasPaid:', typeof result.hasPaid);
-        console.log('result.hasPaid === true:', result.hasPaid === true);
-        
-        return result.hasPaid === true;
-    } catch (error) {
-        console.error('Payment check failed:', error);
-        return false;
-    }
-}
-
-
-
-
 class Game {
     constructor() {
         this.canvas = document.getElementById('gameCanvas');
         this.ctx = this.canvas.getContext('2d');
         this.width = this.canvas.width;
         this.height = this.canvas.height;
+        this.serverSessionId = null
 
         this.player = new Player(this.width / 2, this.height - 50);
         this.mouseX = this.width / 2;
@@ -124,8 +103,11 @@ class Game {
         this.level = 1;
         this.expToNextLevel = 100;
         this.showLevelUp = false;
-        this.payOutAmount = 0;
 
+        // Track per-wave scoring
+        this.scoreThisWave = 0;
+        this.lastWaveScore = 0;
+        
         // Game state flags
         this.started = false;
         this.gameRunning = false;
@@ -136,6 +118,7 @@ class Game {
         this.waveNumber = 1;
         this.waveProgress = 0;
         this.waveRequirement = 300;
+        this.waveStartTime = Date.now();
         this.globalEnemyMultiplier = 1;
         this.enemyDamageMultiplier = 1;
 
@@ -370,11 +353,6 @@ class Game {
             restartBtn.addEventListener('click', async () => {
                 console.log('Game over restart button clicked');
 
-                // Payout should already be processed in gameOver(), but double-check
-                if (this.payOutAmount > 0) {
-                    await this.automaticPayout();
-                }
-
                 // Hide game over menu
                 document.getElementById('gameOver').classList.add('hidden');
 
@@ -500,32 +478,33 @@ class Game {
 
 
     async startGame() {
-        console.log('=== startGame() called ===');
+        // Check payment status with server
+        const accessCheck = await post('/checkGameAccess', {});
 
-        const hasValidPayment = await checkPaymentStatus();
-
-        if (!hasValidPayment) {
-            console.log('Payment verification failed');
+        if (accessCheck.needsPayment) {
             pay(); // Show payment dialog
             return;
         }
 
-        console.log('Payment verified, starting game...');
+        // Start server game session
+        const sessionResult = await post('/startGameSession', {});
 
-        console.log('Payment verified, starting game...');
+        if (!sessionResult.ok) {
+            console.error('Failed to start game session:', sessionResult.error);
+            pay(); // Require payment
+            return;
+        }
 
+        this.serverSessionId = sessionResult.sessionId;
+        console.log('Server game session started');
+
+        // Start client game
         this.started = true;
         this.gameRunning = true;
-        this.gamePaused = false;
-        this.showLevelUp = false;
-        this.gamePausedReason = '';
-
-        console.log('Hiding all menus...');
         this.hideAllMenus();
-
-        console.log('Calling restart...');
         this.restart(true);
     }
+
 
 
 
@@ -602,25 +581,44 @@ class Game {
         }
     }
 
-    checkWaveProgress() {
+    async checkWaveProgress() {
         if (this.waveProgress >= this.waveRequirement) {
-            this.waveNumber++;
-            this.waveProgress = 0;
-            this.waveRequirement += 50;
+            if (this.waveProgress >= this.waveRequirement) {
+                const waveCompleteTime = Date.now() - this.waveStartTime;
 
-            // Check for payout every 5 waves
-            if (this.waveNumber % 5 === 0) {
-                this.payOutAmount += 3;
-                console.log(`Wave ${this.waveNumber} completed! Earned 3 digipogs. Total payout: ${this.payOutAmount}`);
-            }
+                // Calculate score gained this wave (you'll need to track this)
+                const scoreThisWave = this.scoreThisWave || 0; // Track this properly
 
-            // Every 5 waves, increase global enemy multiplier
-            if (this.waveNumber % 5 === 0) {
-                this.globalEnemyMultiplier += 0.3;
-                this.enemyDamageMultiplier += 0.5;
+                // Report to server for validation
+                const result = await post('/recordGameEvent', {
+                    eventType: 'WAVE_COMPLETE',
+                    data: {
+                        waveNumber: this.waveNumber,
+                        timeTaken: waveCompleteTime,
+                        scoreGained: scoreThisWave
+                    }
+                });
+
+                if (!result.ok) {
+                    console.error('Server rejected wave completion:', result.error);
+                    alert('Game session ended due to validation error');
+                    this.gameOver();
+                    return;
+                }
+
+                // Update client state based on server response
+                this.waveNumber = result.nextWave;
+                this.waveProgress = 0;
+                this.waveStartTime = Date.now();
+
+                // record/reset wave score
+                this.lastWaveScore = this.scoreThisWave;
+                this.scoreThisWave = 0;
+
+                console.log(`Wave completed. Server payout: ${result.totalPayout}`);
             }
         }
-    }
+    };
 
     checkLevelUp() {
         if (this.exp >= this.expToNextLevel && !this.showLevelUp) {
@@ -756,6 +754,7 @@ class Game {
                     this.createExplosion(this.enemies[j].x, this.enemies[j].y);
                     this.enemies.splice(j, 1);
                     this.score += 10;
+                    this.scoreThisWave += 10;
                     this.waveProgress += 10;
                     this.addExp(5);
                     if (this.player.lifeSteal && this.player.health < this.player.maxHealth) {
@@ -773,6 +772,7 @@ class Game {
                     this.createExplosion(this.shooters[j].x, this.shooters[j].y);
                     this.shooters.splice(j, 1);
                     this.score += 25;
+                    this.scoreThisWave += 25;
                     this.waveProgress += 25;
                     this.addExp(12);
                     if (this.player.lifeSteal && this.player.health < this.player.maxHealth) {
@@ -789,6 +789,7 @@ class Game {
                     this.tanks[j].takeDamage(bullet.damage);
                     this.createExplosion(bullet.x, bullet.y);
                     this.score += 5;
+                    this.scoreThisWave += 5;
                     this.waveProgress += 5;
                     this.addExp(3);
 
@@ -796,6 +797,7 @@ class Game {
                         this.createExplosion(this.tanks[j].x, this.tanks[j].y);
                         this.tanks.splice(j, 1);
                         this.score += 50;
+                        this.scoreThisWave += 50;
                         this.waveProgress += 50;
                         this.addExp(25);
                         if (this.player.lifeSteal && this.player.health < this.player.maxHealth) {
@@ -813,6 +815,7 @@ class Game {
                     this.sprinters[j].takeDamage(bullet.damage);
                     this.createExplosion(bullet.x, bullet.y);
                     this.score += 8;
+                    this.scoreThisWave += 8;
                     this.waveProgress += 8;
                     this.addExp(4);
 
@@ -820,6 +823,7 @@ class Game {
                         this.createExplosion(this.sprinters[j].x, this.sprinters[j].y);
                         this.sprinters.splice(j, 1);
                         this.score += 75;
+                        this.scoreThisWave += 75;
                         this.waveProgress += 75;
                         this.addExp(35);
                         if (this.player.lifeSteal && this.player.health < this.player.maxHealth) {
@@ -837,6 +841,7 @@ class Game {
                     this.bosses[j].takeDamage(bullet.damage);
                     this.createExplosion(bullet.x, bullet.y);
                     this.score += 15;
+                    this.scoreThisWave += 15;
                     this.waveProgress += 15;
                     this.addExp(8);
 
@@ -844,6 +849,7 @@ class Game {
                         this.createExplosion(this.bosses[j].x, this.bosses[j].y);
                         this.bosses.splice(j, 1);
                         this.score += 200;
+                        this.scoreThisWave += 200;
                         this.waveProgress += 200;
                         this.addExp(100);
                         if (this.player.lifeSteal && this.player.health < this.player.maxHealth) {
@@ -959,25 +965,16 @@ class Game {
     async gameOver() {
         this.gameRunning = false;
 
-        console.log('Game over - processing automatic payout...');
-        const payoutAmount = this.payOutAmount; // Store amount before payout
-        await this.automaticPayout();
+        // End server session and get final payout
+        const endResult = await post('/endGame', {});
 
-        // Update display elements
-        const finalScoreEl = document.getElementById('finalScore');
+        const finalPayout = endResult.ok ? endResult.payout : 0;
+
+        // Update UI with server-calculated payout
         const payOutAmountEl = document.getElementById('payOutAmount');
+        if (payOutAmountEl) payOutAmountEl.textContent = finalPayout;
 
-        if (finalScoreEl) finalScoreEl.textContent = this.score;
-        if (payOutAmountEl) payOutAmountEl.textContent = payoutAmount; // Show original amount earned
-
-        // Show game over menu
-        const gameOverMenu = document.getElementById('gameOver');
-        if (gameOverMenu) {
-            gameOverMenu.classList.remove('hidden');
-            console.log('Game over menu should be visible');
-        } else {
-            console.error('Game over menu element not found!');
-        }
+        document.getElementById('gameOver').classList.remove('hidden');
     }
 
 
@@ -1005,7 +1002,6 @@ class Game {
         this.waveRequirement = 300;
         this.globalEnemyMultiplier = 1;
         this.enemyDamageMultiplier = 1;
-        this.payOutAmount = 0;
         this.showLevelUp = false;
         this.gamePaused = false;
         this.gamePausedReason = '';
