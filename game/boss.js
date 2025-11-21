@@ -1,12 +1,12 @@
-class Boss {
+class Blaster {
     constructor(x, y, multiplier = 1) {
         this.x = x;
         this.y = y;
         this.width = 80;
         this.height = 60;
         this.speed = 0.02 * multiplier;
-        this.hp = Math.ceil(15 * multiplier);
-        this.maxHp = Math.ceil(15 * multiplier);
+        this.hp = Math.ceil(100 * multiplier);
+        this.maxHp = Math.ceil(100 * multiplier);
         this.shootCooldown = Math.max(400, 800 / multiplier);
         this.lastShootTime = 0;
         this.contactDamage = Math.ceil(4 * multiplier);
@@ -107,7 +107,330 @@ class Boss {
         ctx.fillStyle = 'white';
         ctx.font = '12px Arial';
         ctx.textAlign = 'center';
-        ctx.fillText('BOSS', this.x + this.width / 2, this.y - 16);
+        ctx.fillText('BLASTER', this.x + this.width / 2, this.y - 16);
         ctx.textAlign = 'left';
+    }
+}
+
+class Sentinel {
+    constructor(x, y, multiplier = 1) {
+        // Position and size
+        this.x = x;
+        this.y = y;
+        this.width = 80;  // Adjust per boss
+        this.height = 60; // Adjust per boss
+
+        // Health and damage
+        this.hp = Math.ceil(baseHP * multiplier);
+        this.maxHp = this.hp;
+        this.contactDamage = Math.ceil(baseDamage * multiplier);
+
+
+        // Movement
+        this.speed = baseSpeed * multiplier;
+
+        // Boss-specific properties go here
+    }
+
+    update(deltaTime, bullets, player, damageMultiplier = 1) {
+        // Boss-specific behavior goes here
+    }
+
+    takeDamage(damage = 1) {
+        this.hp -= damage;
+    }
+
+    render(ctx) {
+        // Boss appearance
+        // Health bar will be handled separately
+    }
+}
+
+
+class Slasher {
+    constructor(x, y, multiplier = 1) {
+        // Position and size
+        this.x = x;
+        this.y = y;
+        this.width = 60;
+        this.height = 40;
+
+        // Health and damage
+        this.hp = Math.ceil(50 * multiplier);
+        this.maxHp = this.hp;
+        this.contactDamage = Math.ceil(8 * multiplier);
+
+        // Movement
+        this.speed = 0.5 * multiplier;
+
+        // Dash attack properties
+        this.dashState = 'idle';
+        this.lockOnTime = 0;
+        this.lockOnDuration = 1500;
+        this.dashSpeed = 1.2 * multiplier;
+        this.dashDamage = Math.ceil(16 * multiplier);
+        this.dashCooldown = 5000;
+        this.cooldownTimer = 0; // Start ready to dash immediately
+        this.dashRange = 300;
+
+        // Target position for dash
+        this.targetX = 0;
+        this.targetY = 0;
+        this.dashVelocityX = 0;
+        this.dashVelocityY = 0;
+    }
+
+    update(deltaTime, bullets, player, damageMultiplier = 1) {
+        if (this.cooldownTimer > 0) {
+            this.cooldownTimer -= deltaTime;
+        }
+
+        console.log(`Dash state: ${this.dashState}, Cooldown: ${this.cooldownTimer}`);
+
+        switch (this.dashState) {
+            case 'idle':
+                this.handleIdleState(deltaTime, player);
+                break;
+            case 'locking':
+                this.handleLockingState(deltaTime, player);
+                break;
+            case 'dashing':
+                this.handleDashingState(deltaTime);
+                break;
+            case 'cooldown':
+                this.handleCooldownState(deltaTime, player);
+                break;
+        }
+    }
+
+    handleIdleState(deltaTime, player) {
+        if (this.y < 0) {
+            this.y += this.speed * deltaTime * 2;
+            return;
+        }
+
+        // Movement toward player
+        const dx = player.x - this.x;
+        const dy = player.y - this.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        // Move toward player
+        if (distance > 0) {
+            this.x += (dx / distance) * this.speed * deltaTime;
+            this.y += (dy / distance) * this.speed * deltaTime;
+        }
+
+        const withinRange = distance <= this.dashRange;
+        const cooldownReady = this.cooldownTimer <= 0;
+
+        console.log(`Distance: ${distance}, Within range: ${withinRange}, Cooldown ready: ${cooldownReady}`);
+
+        if (withinRange && cooldownReady) {
+            console.log('Starting lock-on phase');
+            this.dashState = 'locking';
+            this.lockOnTime = 0; // FIX: Reset to 0, not 3000
+        }
+    }
+
+    handleLockingState(deltaTime, player) {
+        console.log('Locking onto player...');
+        this.lockOnTime += deltaTime;
+
+        if (this.lockOnTime >= this.lockOnDuration) {
+            console.log('Lock-on complete, starting dash');
+            this.dashState = 'dashing';
+            this.calculateDashTrajectory(player);
+        }
+    }
+
+    calculateDashTrajectory(player) {
+        const dx = (player.x + player.width / 2) - (this.x + this.width / 2);
+        const dy = (player.y + player.height / 2) - (this.y + this.height / 2);
+        const distance = Math.sqrt(dx * dx + dy * dy) || 1;
+
+        this.dashVelocityX = (dx / distance) * this.dashSpeed;
+        this.dashVelocityY = (dy / distance) * this.dashSpeed;
+
+        console.log(`Dash velocity: (${this.dashVelocityX}, ${this.dashVelocityY})`);
+    }
+
+    handleDashingState(deltaTime) {
+        // Move the boss
+        this.x += this.dashVelocityX * deltaTime;
+        this.y += this.dashVelocityY * deltaTime;
+
+        const gameWidth = 800;
+        const gameHeight = 600;
+
+        // Check if boss will hit wall BEFORE clamping position
+        const willHitWall = (this.x <= 0) ||
+            (this.x + this.width >= gameWidth) ||
+            (this.y <= 0) ||
+            (this.y + this.height >= gameHeight);
+
+        if (willHitWall) {
+            console.log('Hit wall! Ending dash');
+            this.dashState = 'cooldown';
+            this.cooldownTimer = this.dashCooldown; // Start 10-second cooldown
+
+            // Clamp position after detecting collision
+            this.x = Math.max(0, Math.min(this.x, gameWidth - this.width));
+            this.y = Math.max(0, Math.min(this.y, gameHeight - this.height));
+        }
+    }
+
+    handleCooldownState(deltaTime, player) {
+        console.log(`Cooling down... ${this.cooldownTimer}ms remaining`);
+
+        if (this.cooldownTimer <= 0) {
+            console.log('Cooldown complete, returning to idle');
+            this.dashState = 'idle';
+            // Don't reset cooldownTimer here - it's already 0
+        }
+    }
+
+    takeDamage(damage = 1) {
+        this.hp -= damage;
+    }
+
+    handleCooldownState(deltaTime, player) {
+        if (this.cooldownTimer <= 0) {
+            this.dashState = 'idle';
+            this.cooldownTimer = this.dashCooldown; // Reset to 10 seconds
+            console.log('Dash complete, cooldown started');
+        }
+    }
+
+    takeDamage(damage = 1) {
+        this.hp -= damage;
+    };
+
+    render(ctx) {
+        // Boss appearance
+        // Health bar will be handled separately
+
+        // Hull
+        ctx.fillStyle = '#7f001f'; // darker red than Blaster
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+
+        // Inner panel
+        ctx.fillStyle = '#555555';
+        ctx.fillRect(this.x + 8, this.y + 8, this.width - 16, this.height - 16);
+
+        // Blade slashes (distinct visual)
+        ctx.strokeStyle = '#222222';
+        ctx.lineWidth = 2;
+        for (let i = 0; i < 3; i++) {
+            const sx = this.x + 6 + i * 12;
+            const sy = this.y + 6 + (i % 2 ? 0 : 6);
+            ctx.beginPath();
+            ctx.moveTo(sx, sy);
+            ctx.lineTo(sx + 8, sy + 14);
+            ctx.stroke();
+        }
+
+        // Core triangle that changes color by phase (different palette than Blaster)
+        const coreColor = this.phase === 3 ? '#ff3366' : this.phase === 2 ? '#ff99cc' : '#ffccdd';
+        ctx.fillStyle = coreColor;
+        ctx.beginPath();
+        const cx = this.x + this.width / 2;
+        const cy = this.y + this.height / 2;
+        const size = 10 + (this.phase - 1) * 4; // slightly larger at higher phases
+        ctx.moveTo(cx, cy - size);
+        ctx.lineTo(cx - size, cy + size);
+        ctx.lineTo(cx + size, cy + size);
+        ctx.closePath();
+        ctx.fill();
+
+        // Small core glow ring (subtle)
+        ctx.strokeStyle = this.phase === 3 ? 'rgba(255,51,102,0.35)' : this.phase === 2 ? 'rgba(255,153,204,0.25)' : 'rgba(255,204,221,0.18)';
+        ctx.beginPath();
+        ctx.arc(cx, cy, size + 6, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Health bar (thin, above hull)
+        ctx.fillStyle = 'green';
+        ctx.fillRect(this.x, this.y - 10, this.width, 6);
+        ctx.fillStyle = 'lime';
+        ctx.fillRect(this.x, this.y - 10, (Math.max(0, this.hp) / this.maxHp) * this.width, 6);
+
+
+        ctx.strokeStyle = 'yellow';
+        ctx.beginPath();
+        ctx.arc(this.x + this.width / 2, this.y + this.height / 2, this.dashRange, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Debug: Show cooldown timer
+        if (this.cooldownTimer > 0) {
+            ctx.fillStyle = 'white';
+            ctx.font = '12px Arial';
+            ctx.fillText(`Cooldown: ${Math.ceil(this.cooldownTimer / 1000)}s`, this.x, this.y - 20);
+        }
+    }
+}
+
+class Railgun {
+    constructor(x, y, multiplier = 1) {
+        // Position and size
+        this.x = x;
+        this.y = y;
+        this.width = 80;  // Adjust per boss
+        this.height = 60; // Adjust per boss
+
+        // Health and damage
+        this.hp = Math.ceil(baseHP * multiplier);
+        this.maxHp = this.hp;
+        this.contactDamage = Math.ceil(baseDamage * multiplier);
+
+        // Movement
+        this.speed = baseSpeed * multiplier;
+
+        // Boss-specific properties go here
+    }
+
+    update(deltaTime, bullets, player, damageMultiplier = 1) {
+        // Boss-specific behavior goes here
+    }
+
+    takeDamage(damage = 1) {
+        this.hp -= damage;
+    }
+
+    render(ctx) {
+        // Boss appearance
+        // Health bar will be handled separately
+    }
+}
+
+class Overlord {
+    constructor(x, y, multiplier = 1) {
+        // Position and size
+        this.x = x;
+        this.y = y;
+        this.width = 80;  // Adjust per boss
+        this.height = 60; // Adjust per boss
+
+        // Health and damage
+        this.hp = Math.ceil(baseHP * multiplier);
+        this.maxHp = this.hp;
+        this.contactDamage = Math.ceil(baseDamage * multiplier);
+
+        // Movement
+        this.speed = baseSpeed * multiplier;
+
+        // Boss-specific properties go here
+    }
+
+    update(deltaTime, bullets, player, damageMultiplier = 1) {
+        // Boss-specific behavior goes here
+    }
+
+    takeDamage(damage = 1) {
+        this.hp -= damage;
+    }
+
+    render(ctx) {
+        // Boss appearance
+        // Health bar will be handled separately
     }
 }

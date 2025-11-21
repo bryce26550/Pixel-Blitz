@@ -101,10 +101,11 @@ app.post('/payIn', isAuthenticated, (req, res) => {
 
     const data = {
         from: userId,
-        to: 27, // Replace with 27 when running official server
-        amount: 25,
+        to: 1, // Replace with 17 when running official server
+        amount: 1,
         pin: parseInt(pin),
-        reason: 'Game Entry Fee'
+        reason: 'Game Entry Fee',
+        // pool: 'true' uncomment for official server use
     };
 
     console.log('Processing payment:', data);
