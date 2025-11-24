@@ -95,6 +95,7 @@ class Game {
         this.tanks = [];
         this.sprinters = [];
         this.bosses = [];
+        this.availableBosses = [Blaster, Slasher]; // Add Blaster, Slasher, Sentinel, Railgun, Overlord for all bosses to be available
         this.particles = [];
 
         this.score = 0;
@@ -107,7 +108,7 @@ class Game {
         // Track per-wave scoring
         this.scoreThisWave = 0;
         this.lastWaveScore = 0;
-        
+
         // Game state flags
         this.started = false;
         this.gameRunning = false;
@@ -128,7 +129,7 @@ class Game {
         this.shooterSpawnTimer = 0;
         this.tankSpawnTimer = 0;
         this.sprinterSpawnTimer = 0;
-        this.bossSpawnTimer = 0;
+        this.bossSpawnedThisWave = false;
 
         // UI hit rects for canvas interactions
         this.uiRects = {
@@ -505,7 +506,20 @@ class Game {
         this.restart(true);
     }
 
+    getRandomBoss() {
+        const randomIndex = Math.floor(Math.random() * this.availableBosses.length);
+        const bossClass = this.availableBosses[randomIndex];
 
+        console.log(`Random boss selected: ${bossClass}`);
+        
+        const boss = new bossClass(this.width / 2 - 40, 50, this.globalEnemyMultiplier);
+
+        // Give boss access to game dimensions
+        boss.gameWidth = this.width;
+        boss.gameHeight = this.height;
+
+        return boss;
+    }
 
 
     togglePause() {
@@ -574,10 +588,10 @@ class Game {
             this.sprinterSpawnTimer = 0;
         }
 
-        this.bossSpawnTimer += deltaTime;
-        if (this.bossSpawnTimer > 40000 && this.waveNumber >= 4) {
-            this.bosses.push(new Boss(this.width / 2 - 40, -60, this.globalEnemyMultiplier));
-            this.bossSpawnTimer = 0;
+        if ((this.waveNumber - 5) % 10 === 0 && this.waveNumber >= 5 && !this.bossSpawnedThisWave) {
+            this.bosses.push(this.getRandomBoss());
+            this.bossSpawnedThisWave = true;
+
         }
     }
 
@@ -608,6 +622,7 @@ class Game {
 
                 // Update client state based on server response
                 this.waveNumber = result.nextWave;
+                this.bossSpawnedThisWave = false;
                 this.waveProgress = 0;
                 this.waveStartTime = Date.now();
 
@@ -632,7 +647,7 @@ class Game {
 
     generateUpgradeOptions() {
         const allUpgrades = [
-            { name: "Bonus Shield", description: "+2 Max Shield", effect: () => { this.player.maxHealth += 2; this.player.health += 2; } },
+            { name: "Bonus Shield", description: "+5 Max Shield", effect: () => { this.player.maxHealth += 5; this.player.health += 5; } },
             { name: "Damage Boost", description: "+1 Bullet Damage", effect: () => { this.player.damage += 1; } },
             { name: "Fire Rate", description: "Faster Shooting", effect: () => { this.player.shootCooldownMax = Math.max(50, this.player.shootCooldownMax - 30); } },
             { name: "Bullet Speed", description: "Faster Bullets", effect: () => { this.player.bulletSpeed += 0.2; } },
@@ -887,10 +902,14 @@ class Game {
                 this.createExplosion(allEnemies[i].x, allEnemies[i].y);
                 const dmg = Math.ceil((allEnemies[i].contactDamage || 1) * this.enemyDamageMultiplier);
                 this.player.takeDamageAmount(dmg);
+
                 if (this.player.health <= 0) {
                     this.damagePlayer();
                 }
-                this.removeEnemyFromArrays(allEnemies[i]);
+                const isBoss = this.bosses.includes(allEnemies[i]);
+                if (!isBoss) {
+                    this.removeEnemyFromArrays(allEnemies[i]);
+                }
             }
         }
 
@@ -1002,6 +1021,7 @@ class Game {
         this.waveRequirement = 300;
         this.globalEnemyMultiplier = 1;
         this.enemyDamageMultiplier = 1;
+        this.bossSpawnedThisWave = false;
         this.showLevelUp = false;
         this.gamePaused = false;
         this.gamePausedReason = '';
