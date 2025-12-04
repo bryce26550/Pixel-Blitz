@@ -5,8 +5,8 @@ class Blaster {
         this.width = 80;
         this.height = 60;
         this.speed = 0.02 * multiplier;
-        this.hp = Math.ceil(100 * multiplier);
-        this.maxHp = Math.ceil(100 * multiplier);
+        this.hp = Math.ceil(75 * multiplier);
+        this.maxHp = Math.ceil(75 * multiplier);
         this.shootCooldown = Math.max(400, 800 / multiplier);
         this.lastShootTime = 0;
         this.contactDamage = Math.ceil(4 * multiplier);
@@ -293,80 +293,126 @@ class Slasher {
         this.hp -= damage;
     }
 
-    handleCooldownState(deltaTime, player) {
-        if (this.cooldownTimer <= 0) {
-            this.dashState = 'idle';
-            this.cooldownTimer = this.dashCooldown; // Reset to 10 seconds
-            console.log('Dash complete, cooldown started');
-        }
-    }
-
     takeDamage(damage = 1) {
         this.hp -= damage;
     };
 
     render(ctx) {
-        // Boss appearance
-        // Health bar will be handled separately
+        // Get current state for visual effects
+        const isDashing = this.dashState === 'dashing';
+        const isLocking = this.dashState === 'locking';
+        const isCharging = this.dashState === 'locking' && this.lockOnTime > this.lockOnDuration * 0.5;
 
-        // Hull
-        ctx.fillStyle = '#7f001f'; // darker red than Blaster
+        // Add dash trail effect
+        if (isDashing) {
+            this.renderDashTrail(ctx);
+        }
+
+        // Main hull - color changes based on state
+        let hullColor = '#7f001f'; // Default dark red
+        if (isDashing) {
+            hullColor = '#ff0000'; // Bright red when dashing
+        } else if (isLocking) {
+            // Pulsing effect during lock-on
+            const pulseIntensity = Math.sin(Date.now() * 0.01) * 0.3 + 0.7;
+            hullColor = `rgba(255, 51, 102, ${pulseIntensity})`;
+        }
+
+        ctx.fillStyle = hullColor;
         ctx.fillRect(this.x, this.y, this.width, this.height);
 
         // Inner panel
         ctx.fillStyle = '#555555';
         ctx.fillRect(this.x + 8, this.y + 8, this.width - 16, this.height - 16);
 
-        // Blade slashes (distinct visual)
-        ctx.strokeStyle = '#222222';
-        ctx.lineWidth = 2;
+        // Enhanced blade slashes - animate during lock-on
+        ctx.strokeStyle = isCharging ? '#ff3366' : '#222222';
+        ctx.lineWidth = isCharging ? 3 : 2;
+
         for (let i = 0; i < 3; i++) {
             const sx = this.x + 6 + i * 12;
             const sy = this.y + 6 + (i % 2 ? 0 : 6);
+
+            // Add glow effect when charging
+            if (isCharging) {
+                ctx.shadowColor = '#ff3366';
+                ctx.shadowBlur = 5;
+            }
+
             ctx.beginPath();
             ctx.moveTo(sx, sy);
             ctx.lineTo(sx + 8, sy + 14);
             ctx.stroke();
+
+            ctx.shadowBlur = 0; // Reset shadow
         }
 
-        // Core triangle that changes color by phase (different palette than Blaster)
-        const coreColor = this.phase === 3 ? '#ff3366' : this.phase === 2 ? '#ff99cc' : '#ffccdd';
+        // Core triangle - more dramatic state changes
+        let coreColor = '#ffccdd'; // Default light pink
+        let coreSize = 8;
+
+        if (isDashing) {
+            coreColor = '#ffffff'; // White hot during dash
+            coreSize = 12;
+        } else if (isLocking) {
+            coreColor = '#ff3366'; // Hot pink during lock-on
+            coreSize = 10;
+            // Add pulsing
+            coreSize += Math.sin(Date.now() * 0.02) * 2;
+        }
+
         ctx.fillStyle = coreColor;
         ctx.beginPath();
         const cx = this.x + this.width / 2;
         const cy = this.y + this.height / 2;
-        const size = 10 + (this.phase - 1) * 4; // slightly larger at higher phases
-        ctx.moveTo(cx, cy - size);
-        ctx.lineTo(cx - size, cy + size);
-        ctx.lineTo(cx + size, cy + size);
+        ctx.moveTo(cx, cy - coreSize);
+        ctx.lineTo(cx - coreSize, cy + coreSize);
+        ctx.lineTo(cx + coreSize, cy + coreSize);
         ctx.closePath();
         ctx.fill();
 
-        // Small core glow ring (subtle)
-        ctx.strokeStyle = this.phase === 3 ? 'rgba(255,51,102,0.35)' : this.phase === 2 ? 'rgba(255,153,204,0.25)' : 'rgba(255,204,221,0.18)';
-        ctx.beginPath();
-        ctx.arc(cx, cy, size + 6, 0, Math.PI * 2);
-        ctx.stroke();
+        // Enhanced core glow
+        if (isDashing) {
+            // Intense white glow during dash
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(cx, cy, coreSize + 8, 0, Math.PI * 2);
+            ctx.stroke();
+        } else if (isLocking) {
+            // Pulsing red glow during lock-on
+            const glowIntensity = Math.sin(Date.now() * 0.015) * 0.4 + 0.6;
+            ctx.strokeStyle = `rgba(255, 51, 102, ${glowIntensity})`;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(cx, cy, coreSize + 6, 0, Math.PI * 2);
+            ctx.stroke();
+        }
 
-        // Health bar (thin, above hull)
-        ctx.fillStyle = 'green';
+        // Health bar
+        ctx.fillStyle = 'darkred';
         ctx.fillRect(this.x, this.y - 10, this.width, 6);
-        ctx.fillStyle = 'lime';
+        ctx.fillStyle = isDashing ? 'white' : 'lime';
         ctx.fillRect(this.x, this.y - 10, (Math.max(0, this.hp) / this.maxHp) * this.width, 6);
+    }
 
+    // Add these helper methods to your Slasher class:
 
-        ctx.strokeStyle = 'yellow';
-        ctx.beginPath();
-        ctx.arc(this.x + this.width / 2, this.y + this.height / 2, this.dashRange, 0, Math.PI * 2);
-        ctx.stroke();
+    renderDashTrail(ctx) {
+        // Create motion blur effect
+        const trailLength = 5;
+        const trailOpacity = 0.3;
 
-        // Debug: Show cooldown timer
-        if (this.cooldownTimer > 0) {
-            ctx.fillStyle = 'white';
-            ctx.font = '12px Arial';
-            ctx.fillText(`Cooldown: ${Math.ceil(this.cooldownTimer / 1000)}s`, this.x, this.y - 20);
+        for (let i = 0; i < trailLength; i++) {
+            const trailX = this.x - (this.dashVelocityX * i * 20);
+            const trailY = this.y - (this.dashVelocityY * i * 20);
+            const opacity = trailOpacity * (1 - i / trailLength);
+
+            ctx.fillStyle = `rgba(255, 0, 0, ${opacity})`;
+            ctx.fillRect(trailX, trailY, this.width, this.height);
         }
     }
+
 }
 
 class Railgun {
