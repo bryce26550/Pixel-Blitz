@@ -98,6 +98,12 @@ class Game {
         this.availableBosses = [Blaster, Slasher]; // Add Blaster, Slasher, Sentinel, Railgun, Overlord for all bosses to be available
         this.particles = [];
 
+        // Pre-boss wave system
+        this.preBossActive = false;
+        this.preBossTimer = 0;
+        this.preBossDuration = 5000; // 5 seconds
+        this.preBossMessage = '';
+
         this.score = 0;
         this.lives = 3;
         this.exp = 0;
@@ -511,7 +517,7 @@ class Game {
         const bossClass = this.availableBosses[randomIndex];
 
         console.log(`Random boss selected: ${bossClass}`);
-        
+
         const boss = new bossClass(this.width / 2 - 40, 50, this.globalEnemyMultiplier);
 
         // Give boss access to game dimensions
@@ -541,6 +547,12 @@ class Game {
         if (!this.started) return;
         if (!this.gameRunning || this.gamePaused) return;
 
+        if (this.preBossActive) {
+            this.player.update(this.keys, deltaTime);
+            this.updatePreBossSequence(deltaTime);
+            return;
+        }
+
         this.player.update(this.keys, deltaTime);
 
         // Spawn enemies
@@ -561,8 +573,21 @@ class Game {
         this.checkLevelUp();
     }
 
+    isBossWave() {
+        return (this.waveNumber - 5) % 10 === 0 && this.waveNumber >= 5;
+    }
+
     spawnEnemies(deltaTime) {
         const baseSpawnRate = Math.max(300, 1200 - (this.waveNumber * 50));
+
+        if (this.isBossWave()) {
+            // Only spawn the boss
+            if ((this.waveNumber - 5) % 10 === 0 && this.waveNumber >= 5 && !this.bossSpawnedThisWave) {
+                this.bosses.push(this.getRandomBoss());
+                this.bossSpawnedThisWave = true;
+            }
+            return; // Exit early - no regular enemies on boss waves
+        }
 
         this.enemySpawnTimer += deltaTime;
         if (this.enemySpawnTimer > baseSpawnRate) {
@@ -587,12 +612,56 @@ class Game {
             this.sprinters.push(new Sprinter(Math.random() * (this.width - 40), -40, this.globalEnemyMultiplier));
             this.sprinterSpawnTimer = 0;
         }
+    }
 
-        if ((this.waveNumber - 5) % 10 === 0 && this.waveNumber >= 5 && !this.bossSpawnedThisWave) {
-            this.bosses.push(this.getRandomBoss());
-            this.bossSpawnedThisWave = true;
+    startPreBossSequence(nextWaveNumber) {
+        console.log(`starting pre-boss sequence for wave ${nextWaveNumber}`);
 
+        this.preBossActive = true;
+        this.preBossTimer = 0;
+        this.preBossMessage = `BOSS WAVE ${nextWaveNumber} INCOMING!`;
+
+        this.clearAllEnemies();
+
+        this.pendingWaveNumber = nextWaveNumber;
+    }
+
+    clearAllEnemies() {
+        // Create explosions for dramatic effect
+        [...this.enemies, ...this.shooters, ...this.tanks, ...this.sprinters].forEach(enemy => {
+            this.createExplosion(enemy.x + enemy.width / 2, enemy.y + enemy.height / 2);
+        });
+
+        // Actually clear all enemies and bullets
+        this.enemies = [];
+        this.shooters = [];
+        this.tanks = [];
+        this.sprinters = [];
+        this.bullets = [];
+    }
+
+    updatePreBossSequence(deltaTime) {
+        this.preBossTimer += deltaTime;
+
+        const timeRemaining = Math.ceil((this.preBossDuration - this.preBossTimer) / 1000);
+        this.preBossMessage = `BOSS WAVE ${this.pendingWaveNumber} IN ${timeRemaining}...`;
+
+        if (this.preBossTimer >= this.preBossDuration) {
+            this.endPreBossSequence();
         }
+    }
+
+    endPreBossSequence() {
+        console.log('Pre-Boss sequence complete, starting boss wave');
+
+        this.preBossActive = false;
+        this.preBossTimer = 0;
+        this.preBossMessage = '';
+
+        this.waveNumber = this.pendingWaveNumber;
+        this.bossSpawnedThisWave = false;
+        this.waveProgress = 0;
+        this.waveStartTime = Date.now();
     }
 
     async checkWaveProgress() {
@@ -620,13 +689,20 @@ class Game {
                     return;
                 }
 
-                // Update client state based on server response
-                this.waveNumber = result.nextWave;
-                this.bossSpawnedThisWave = false;
-                this.waveProgress = 0;
-                this.waveStartTime = Date.now();
+                const nextWave = result.nextWave;
+                const isNextWaveBoss = (nextWave - 5) % 10 === 0 && nextWave >= 5;
 
-                // record/reset wave score
+                if (isNextWaveBoss) {
+                    this.startPreBossSequence(nextWave);
+                } else {
+                    // Normal wave transition
+                    this.waveNumber = result.nextWave;
+                    this.bossSpawnedThisWave = false;
+                    this.waveProgress = 0;
+                    this.waveStartTime = Date.now();
+                }
+
+                // reset wave score
                 this.lastWaveScore = this.scoreThisWave;
                 this.scoreThisWave = 0;
 
@@ -766,14 +842,22 @@ class Game {
             // Check vs enemies
             for (let j = this.enemies.length - 1; j >= 0; j--) {
                 if (this.checkCollision(bullet, this.enemies[j])) {
-                    this.createExplosion(this.enemies[j].x, this.enemies[j].y);
-                    this.enemies.splice(j, 1);
-                    this.score += 10;
-                    this.scoreThisWave += 10;
-                    this.waveProgress += 10;
-                    this.addExp(5);
-                    if (this.player.lifeSteal && this.player.health < this.player.maxHealth) {
-                        this.player.health++;
+                    const enemy = this.enemies[j];
+
+                    // Damage the enemy first
+                    enemy.takeDamage ? enemy.takeDamage(bullet.damage) : (enemy.hp -= bullet.damage);
+                    this.createExplosion(bullet.x, bullet.y);
+
+                    if (enemy.hp <= 0) {
+                        this.createExplosion(enemy.x, enemy.y);
+                        this.enemies.splice(j, 1);
+                        this.score += 10;
+                        this.scoreThisWave += 10;
+                        this.waveProgress += 10;
+                        this.addExp(5);
+                        if (this.player.lifeSteal && this.player.health < this.player.maxHealth) {
+                            this.player.health++;
+                        }
                     }
                     hit = true;
                     hitCount++;
@@ -784,14 +868,22 @@ class Game {
             // Check vs shooters
             for (let j = this.shooters.length - 1; j >= 0 && hitCount < bullet.pierce; j--) {
                 if (this.checkCollision(bullet, this.shooters[j])) {
-                    this.createExplosion(this.shooters[j].x, this.shooters[j].y);
-                    this.shooters.splice(j, 1);
-                    this.score += 25;
-                    this.scoreThisWave += 25;
-                    this.waveProgress += 25;
-                    this.addExp(12);
-                    if (this.player.lifeSteal && this.player.health < this.player.maxHealth) {
-                        this.player.health++;
+                    const shooter = this.shooters[j];
+
+                    // Damage the enemy first
+                    shooter.takeDamage ? shooter.takeDamage(bullet.damage) : (shooter.hp -= bullet.damage);
+                    this.createExplosion(bullet.x, bullet.y);
+
+                    if (shooter.hp <= 0) {
+                        this.createExplosion(shooter.x, shooter.y);
+                        this.shooters.splice(j, 1);
+                        this.score += 25;
+                        this.scoreThisWave += 25;
+                        this.waveProgress += 25;
+                        this.addExp(12);
+                        if (this.player.lifeSteal && this.player.health < this.player.maxHealth) {
+                            this.player.health++;
+                        }
                     }
                     hit = true;
                     hitCount++;
@@ -803,10 +895,6 @@ class Game {
                 if (this.checkCollision(bullet, this.tanks[j])) {
                     this.tanks[j].takeDamage(bullet.damage);
                     this.createExplosion(bullet.x, bullet.y);
-                    this.score += 5;
-                    this.scoreThisWave += 5;
-                    this.waveProgress += 5;
-                    this.addExp(3);
 
                     if (this.tanks[j].hp <= 0) {
                         this.createExplosion(this.tanks[j].x, this.tanks[j].y);
@@ -829,10 +917,6 @@ class Game {
                 if (this.checkCollision(bullet, this.sprinters[j])) {
                     this.sprinters[j].takeDamage(bullet.damage);
                     this.createExplosion(bullet.x, bullet.y);
-                    this.score += 8;
-                    this.scoreThisWave += 8;
-                    this.waveProgress += 8;
-                    this.addExp(4);
 
                     if (this.sprinters[j].hp <= 0) {
                         this.createExplosion(this.sprinters[j].x, this.sprinters[j].y);
@@ -855,17 +939,13 @@ class Game {
                 if (this.checkCollision(bullet, this.bosses[j])) {
                     this.bosses[j].takeDamage(bullet.damage);
                     this.createExplosion(bullet.x, bullet.y);
-                    this.score += 15;
-                    this.scoreThisWave += 15;
-                    this.waveProgress += 15;
-                    this.addExp(8);
 
                     if (this.bosses[j].hp <= 0) {
                         this.createExplosion(this.bosses[j].x, this.bosses[j].y);
                         this.bosses.splice(j, 1);
                         this.score += 200;
                         this.scoreThisWave += 200;
-                        this.waveProgress += 200;
+                        this.waveProgress += this.waveRequirement; // Complete the wave
                         this.addExp(100);
                         if (this.player.lifeSteal && this.player.health < this.player.maxHealth) {
                             this.player.health += 3;
@@ -1055,10 +1135,44 @@ class Game {
         this.bosses.forEach(boss => boss.render(this.ctx));
         this.particles.forEach(particle => particle.render(this.ctx));
 
+        if (this.preBossActive) {
+            this.renderPreBossOverlay();
+        }
+
         // Update UI if game is running
         if (this.started && this.gameRunning) {
             this.updateGameUI();
         }
+    }
+
+    renderPreBossOverlay() {
+        // Dark overlay
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        this.ctx.fillRect(0, 0, this.width, this.height);
+
+        // Warning message
+        this.ctx.fillStyle = '#ff0000';
+        this.ctx.font = '48px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText('DANGER!', this.width / 2, this.height / 2 - 60);
+
+        // Boss wave message
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.font = '32px Arial';
+        this.ctx.fillText(this.preBossMessage, this.width / 2, this.height / 2);
+
+        // Instructions
+        this.ctx.fillStyle = '#ffff00';
+        this.ctx.font = '24px Arial';
+        this.ctx.fillText('PREPARE FOR BATTLE!', this.width / 2, this.height / 2 + 60);
+
+        this.ctx.textAlign = 'left'; // Reset text alignment
+
+        // Screen shake effect
+        this.screenShake = { intensity: 10, duration: 1000, timer: 0 };
+
+        // Flash effect
+        this.flashEffect = { active: true, timer: 0, duration: 500 };
     }
 
 

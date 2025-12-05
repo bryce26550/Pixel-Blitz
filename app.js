@@ -45,7 +45,6 @@ app.use(session({
 }))
 
 function isAuthenticated(req, res, next) {
-
     if (req.session.user) next()
     else res.redirect('/login')
 };
@@ -249,26 +248,26 @@ function handleWaveComplete(gameSession, data, res) {
     }
 
     // ... rest of your existing code
-    
-    
+
+
     // Validate wave progression
     if (waveNumber !== gameSession.currentWave) {
         console.log(`Cheating detected: Wave skip attempt by user ${gameSession.userId}`);
         endGameSession(gameSession.sessionId, 'CHEATING_DETECTED');
         return res.json({ ok: false, error: 'Invalid wave progression' });
     }
-    
+
     // Update server-side game state
     gameSession.currentWave = waveNumber + 1;
     gameSession.wavesCompleted = waveNumber;
     gameSession.totalScore += scoreGained;
-    
+
     // Calculate payout SERVER-SIDE ONLY
     if (waveNumber % 5 === 0) {
         gameSession.payoutEarned += 3; // Server controls payout calculation
         console.log(`Wave ${waveNumber} payout earned. Total: ${gameSession.payoutEarned}`);
     }
-    
+
     res.json({
         ok: true,
         nextWave: gameSession.currentWave,
