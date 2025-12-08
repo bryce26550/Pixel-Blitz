@@ -112,41 +112,6 @@ class Blaster {
     }
 }
 
-class Sentinel {
-    constructor(x, y, multiplier = 1) {
-        // Position and size
-        this.x = x;
-        this.y = y;
-        this.width = 80;  // Adjust per boss
-        this.height = 60; // Adjust per boss
-
-        // Health and damage
-        this.hp = Math.ceil(baseHP * multiplier);
-        this.maxHp = this.hp;
-        this.contactDamage = Math.ceil(baseDamage * multiplier);
-
-
-        // Movement
-        this.speed = baseSpeed * multiplier;
-
-        // Boss-specific properties go here
-    }
-
-    update(deltaTime, bullets, player, damageMultiplier = 1) {
-        // Boss-specific behavior goes here
-    }
-
-    takeDamage(damage = 1) {
-        this.hp -= damage;
-    }
-
-    render(ctx) {
-        // Boss appearance
-        // Health bar will be handled separately
-    }
-}
-
-
 class Slasher {
     constructor(x, y, multiplier = 1) {
         // Position and size
@@ -413,6 +378,40 @@ class Slasher {
         }
     }
 
+}
+
+class Sentinel {
+    constructor(x, y, multiplier = 1) {
+        // Position and size
+        this.x = x;
+        this.y = y;
+        this.width = 80;  // Adjust per boss
+        this.height = 60; // Adjust per boss
+
+        // Health and damage
+        this.hp = Math.ceil(baseHP * multiplier);
+        this.maxHp = this.hp;
+        this.contactDamage = Math.ceil(baseDamage * multiplier);
+
+
+        // Movement
+        this.speed = baseSpeed * multiplier;
+
+        // Boss-specific properties go here
+    }
+
+    update(deltaTime, bullets, player, damageMultiplier = 1) {
+        // Boss-specific behavior goes here
+    }
+
+    takeDamage(damage = 1) {
+        this.hp -= damage;
+    }
+
+    render(ctx) {
+        // Boss appearance
+        // Health bar will be handled separately
+    }
 }
 
 class Railgun {

@@ -31,6 +31,7 @@ class Shooter {
         this.width = 30;
         this.height = 30;
         this.speed = 0.08 * multiplier;
+        this.hp = Math.ceil(1 * multiplier);
         this.shootCooldown = Math.max(800, 1500 / multiplier);
         this.lastShootTime = 0;
         this.contactDamage = Math.ceil(2 * multiplier);
