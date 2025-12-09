@@ -4,10 +4,11 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const session = require('express-session');
 const { io } = require('socket.io-client');
+const { Server } = require('socket.io');
+const http = require('http');
 const sqlite3 = require('sqlite3').verbose();
 const SQLiteStore = require('connect-sqlite3')(session);
 const path = require('path');
-const { log } = require('console');
 
 //database setup
 const db = new sqlite3.Database('./db/database.db', (err) => {
@@ -17,6 +18,27 @@ const db = new sqlite3.Database('./db/database.db', (err) => {
         console.log('Connected to database.');
     }
 });
+
+db.run(`CREATE TABLE IF NOT EXISTS game_settings (
+    id INTEGER PRIMARY KEY,
+    setting_name TEXT UNIQUE,
+    setting_value TEXT
+    )`, (err) => {
+    if (err) {
+        console.log('Error creating game_settings table:', err);
+    } else {
+        db.run(`INSERT OR IGNORE INTO game_settings (setting_name, setting_value) VALUES (?, ?)`,
+            ['game_price', '100'], (err) => {
+                if (err) {
+                    console.error('Error setting default price', err);
+                } else {
+                    console.log('Game settings table ready');
+
+                }
+            });
+    }
+}
+)
 
 //constants
 const app = express();
@@ -49,13 +71,39 @@ function isAuthenticated(req, res, next) {
     else res.redirect('/login')
 };
 
+function isAdmin(req, res, next) {
+    if (req.session.user && (req.session.token.id === 3 || req.session.token.id === 27)) {
+        next();
+    } else {
+        res.status(403).send('Admin access required');
+    }
+}
+
+function getCurrentPrice(callback) {
+    db.get(`SELECT setting_value FROM game_settings WHERE setting_name = ?`, ['game_price'], (err, row) => {
+        if (err) {
+            console.log('Error getting price:', err);
+            callback(1)
+        } else {
+            callback(parseInt(row ? row.setting_value : 1));
+        }
+    })
+}
+
 // Serve static files (CSS, JS, images)
 app.use(express.static(path.join(__dirname)));
 
 // Route for the game
 app.get('/', isAuthenticated, (req, res) => {
-    res.render('index');
+    getCurrentPrice((price) => {
+        const isAdmin = req.session.token.id === 3 || req.session.token.id === 27;
+        res.render('index', { 
+            gamePrice: price, 
+            isAdmin: isAdmin 
+        });
+    });
 });
+
 
 app.get('/login', (req, res) => {
     if (req.query.token) {
@@ -98,61 +146,64 @@ app.post('/payIn', isAuthenticated, (req, res) => {
     const { pin } = req.body;
     const userId = req.session.token.id;
 
-    const data = {
-        from: userId,
-        to: 1, // Replace with 17 when running official server
-        amount: 1,
-        pin: parseInt(pin),
-        reason: 'Game Entry Fee',
-        // pool: 'true' uncomment for official server use
-    };
+    getCurrentPrice((currentPrice) => {
 
-    console.log('Processing payment:', data);
+        const data = {
+            from: userId,
+            to: 1, // Replace with 17 when running official server
+            amount: currentPrice,
+            pin: parseInt(pin),
+            reason: 'Game Entry Fee',
+            // pool: 'true' uncomment for official server use
+        };
 
-    const transferPromise = new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => {
-            reject(new Error('Transfer timeout'));
-        }, 10000);
+        console.log('Processing payment:', data);
 
-        socket.once('transferResponse', (response) => {
-            clearTimeout(timeout);
-            resolve(response);
+        const transferPromise = new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                reject(new Error('Transfer timeout'));
+            }, 10000);
+
+            socket.once('transferResponse', (response) => {
+                clearTimeout(timeout);
+                resolve(response);
+            });
+
+            socket.emit('transferDigipogs', data);
         });
 
-        socket.emit('transferDigipogs', data);
+        transferPromise
+            .then(response => {
+                console.log('Transfer response:', response);
+                if (response.success) {
+                    req.session.hasPaid = true;
+
+                    console.log('=== Payment Success Debug ===');
+                    console.log('Session ID after payment:', req.sessionID);
+                    console.log('req.session.hasPaid after setting:', req.session.hasPaid);
+                    console.log('==============================');
+
+                    // Save session BEFORE responding
+                    req.session.save((err) => {
+                        if (err) {
+                            console.error('Session save error:', err);
+                            return res.json({ ok: false, error: 'Session save failed' });
+                        }
+
+                        console.log('Session saved successfully');
+                        console.log('Sending success response to client');
+                        res.json({ ok: true, message: 'Payment successful' });
+                    });
+                } else {
+                    console.log('Sending failure response to client:', response.message);
+                    res.json({ ok: false, error: response.message || 'Transfer failed' });
+                }
+            })
+            .catch(error => {
+                console.error('Transfer error:', error);
+                res.json({ ok: false, error: 'Transfer failed' });
+            });
     });
-
-    transferPromise
-        .then(response => {
-            console.log('Transfer response:', response);
-            if (response.success) {
-                req.session.hasPaid = true;
-
-                console.log('=== Payment Success Debug ===');
-                console.log('Session ID after payment:', req.sessionID);
-                console.log('req.session.hasPaid after setting:', req.session.hasPaid);
-                console.log('==============================');
-
-                // Save session BEFORE responding
-                req.session.save((err) => {
-                    if (err) {
-                        console.error('Session save error:', err);
-                        return res.json({ ok: false, error: 'Session save failed' });
-                    }
-
-                    console.log('Session saved successfully');
-                    console.log('Sending success response to client');
-                    res.json({ ok: true, message: 'Payment successful' });
-                });
-            } else {
-                console.log('Sending failure response to client:', response.message);
-                res.json({ ok: false, error: response.message || 'Transfer failed' });
-            }
-        })
-        .catch(error => {
-            console.error('Transfer error:', error);
-            res.json({ ok: false, error: 'Transfer failed' });
-        });
 });
 
 app.post('/checkGameAccess', isAuthenticated, (req, res) => {
@@ -162,7 +213,9 @@ app.post('/checkGameAccess', isAuthenticated, (req, res) => {
     if (req.session.hasPaid || (existingSession && existingSession.active)) {
         res.json({ needsPayment: false });
     } else {
-        res.json({ needsPayment: true, cost: 25 });
+        getCurrentPrice((price) => {
+            res.json({ needsPayment: true, cost: price });
+        });
     }
 });
 
@@ -218,6 +271,29 @@ app.post('/recordGameEvent', isAuthenticated, (req, res) => {
     }
 });
 
+app.get('/admin', isAuthenticated, isAdmin, (req, res) => {
+    getCurrentPrice((price) => {
+        res.render('admin', { currentPrice: price, user: req.session.user })
+    });
+});
+
+app.post('/admin/updatePrice', isAuthenticated, isAdmin, (req, res) => {
+    const { newPrice } = req.body;
+    db.run(`UPDATE game_settings SET setting_value = ? WHERE setting_name = ?`,
+        [newPrice, 'game_price'],
+        function (err) {
+            if (err) {
+                console.log('Error updating price:', err);
+                res.json({ ok: false, error: 'Failed to update price' });
+            } else {
+                console.log(`Price updated to ${newPrice}`);
+                gameSocket.emit('priceUpdate', { newPrice: newPrice });
+                res.json({ ok: true, message: 'Price updated successfully' });
+            }
+        }
+    );
+});
+
 // Handle wave completion with anti-cheat validation
 function handleWaveComplete(gameSession, data, res) {
     const { waveNumber, timeTaken, scoreGained } = data;
@@ -246,9 +322,6 @@ function handleWaveComplete(gameSession, data, res) {
         endGameSession(gameSession.sessionId, 'IMPOSSIBLE_SCORE');
         return res.json({ ok: false, error: 'Invalid score' });
     }
-
-    // ... rest of your existing code
-
 
     // Validate wave progression
     if (waveNumber !== gameSession.currentWave) {
@@ -417,6 +490,17 @@ socket.onAny((eventName, ...args) => {
 });
 
 //start server
-app.listen(PORT, () => {
+const server = http.createServer(app);
+const gameSocket = new Server(server);
+
+gameSocket.on('connection', (socket) => {
+    console.log('Client connected to game socket:', socket.id);
+
+    socket.on('disconnect', ()=> {
+        console.log('Client disconnected:', socket.id);
+    });
+});
+
+server.listen(PORT, () => {
     console.log(`Server is running on port http://localhost:${PORT}`);
 });

@@ -410,7 +410,6 @@ class Sentinel {
 
     render(ctx) {
         // Boss appearance
-        // Health bar will be handled separately
     }
 }
 
@@ -443,7 +442,6 @@ class Railgun {
 
     render(ctx) {
         // Boss appearance
-        // Health bar will be handled separately
     }
 }
 
@@ -452,22 +450,55 @@ class Overlord {
         // Position and size
         this.x = x;
         this.y = y;
-        this.width = 80;  // Adjust per boss
-        this.height = 60; // Adjust per boss
+        this.width = 40;  // Adjust per boss
+        this.height = 30; // Adjust per boss
 
         // Health and damage
-        this.hp = Math.ceil(baseHP * multiplier);
+        this.hp = Math.ceil(35 * multiplier);
         this.maxHp = this.hp;
-        this.contactDamage = Math.ceil(baseDamage * multiplier);
+        this.contactDamage = Math.ceil(3 * multiplier);
 
         // Movement
-        this.speed = baseSpeed * multiplier;
+        this.speed = 0.15 * multiplier;
 
         // Boss-specific properties go here
     }
 
     update(deltaTime, bullets, player, damageMultiplier = 1) {
         // Boss-specific behavior goes here
+
+        const currentHealthPercentage = this.hp / this.maxHp;
+
+        // In constructor, add:
+        this.spawnTimer = 0;
+        this.spawnCooldown = 3500;
+        this.lastHealthPercentage = 1.0;
+
+        // Define waves once in constructor
+        this.waves = {
+            first: [Enemy, Enemy, Shooter],
+            second: [Enemy, Enemy, Shooter, Shooter],
+            third: [Enemy, Sprinter, Tank, Shooter, Shooter],
+            fourth: [Tank, Tank, Tank, Sprinter, Shooter, Shooter]
+        };
+        this.currentWave = this.waves.first;
+
+        // Check for health threshold changes
+        if (currentHealthPercentage < 0.75 && this.lastHealthPercentage >= 0.75) {
+            this.currentWave = this.waves.second;
+        } else if (currentHealthPercentage < 0.5 && this.lastHealthPercentage >= 0.5) {
+            this.currentWave = this.waves.third;
+        } else if (currentHealthPercentage < 0.25 && this.lastHealthPercentage >= 0.25) {
+            this.currentWave = this.waves.fourth;
+        }
+        this.lastHealthPercentage = currentHealthPercentage;
+
+        // Spawn minions
+        this.spawnTimer += deltaTime;
+        if (this.spawnTimer >= this.spawnCooldown && enemyArrays) {
+        this.spawnEnemies(enemyArrays);
+        this.spawnTimer = 0;
+    }
     }
 
     takeDamage(damage = 1) {
@@ -476,6 +507,5 @@ class Overlord {
 
     render(ctx) {
         // Boss appearance
-        // Health bar will be handled separately
     }
 }

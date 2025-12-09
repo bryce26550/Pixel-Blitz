@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+
+<body>
+    <div class="admin-container">
+        <h1>Admin Panel</h1>
+        <p>Welcome, <%= user %>!</p>
+
+        <div class="price-management">
+            <h2>Game Price Management</h2>
+            <p>Current Price: <strong>
+                    <%= currentPrice %> Digipogs
+                </strong></p>
+
+            <!-- Your task: Add a form here to update the price -->
+
+            <form action="/admin/updatePrice" method="POST">
+                <label for="newPrice">New Price (Digipogs): </label>
+                <input type="number" id="newPrice" name="newPrice" min="0" required />
+                <button type="submit">Update Price</button>
+                <button type="button" onclick="window.location.href='/'">To Game</button>
+            </form>
+
+
+        </div>
+    </div>
+</body>
+
+</html>
