@@ -819,7 +819,12 @@ class Game {
 
         // Update bosses
         this.bosses = this.bosses.filter(boss => {
-            boss.update(deltaTime, this.bullets, this.player, this.enemyDamageMultiplier);
+            boss.update(deltaTime, this.bullets, this.player, this.enemyDamageMultiplier, {
+                enemies:this.enemies,
+                shooters:this.shooters,
+                tanks:this.tanks,
+                sprinters:this.sprinters
+            });
             return boss.y < this.height + 60 && boss.hp > 0;
         });
 
@@ -1190,4 +1195,31 @@ class Game {
 // Start the game when the page loads
 window.addEventListener('load', () => {
     window.game = new Game();
+});
+
+// Sockets
+
+// Add this near the top of main.js, with more debugging
+console.log('Attempting to connect to socket...');
+const clientSocket = io();
+
+clientSocket.on('connect', () => {
+    console.log('Successfully connected to game socket!');
+});
+
+clientSocket.on('disconnect', () => {
+    console.log('Disconnected from game socket');
+});
+
+clientSocket.on('priceUpdate', (data) => {
+    console.log('Received price update:', data);
+    
+    // Update the price display
+    const priceElement = document.getElementById('price');
+    if (priceElement) {
+        console.log('Updating price element to:', data.newPrice);
+        priceElement.textContent = data.newPrice + ' Digipogs';
+    } else {
+        console.log('Price element not found!');
+    }
 });

@@ -41,39 +41,42 @@
             <div class="menu-panel">
                 <h1>Pixel Blitz</h1>
                 <p class="subtitle">Survive waves, level up, and customize your ship</p>
+                <% if (isAdmin) { %>
+                    <button id="adminPanelBtn" onclick="window.location.href='/admin'">Admin Panel</button>
+                    <% } %>
 
-                <div class="menu-content">
-                    <!-- Left side: Player preview -->
-                    <div class="player-preview">
-                        <h3>Ship Customization</h3>
-                        <div id="playerPreview" class="preview-box">
-                            <div id="playerSprite" class="player-sprite"></div>
-                        </div>
-                        <div class="customization-controls">
-                            <button id="colorBtn" class="customize-btn">Change Color</button>
-                            <button id="shapeBtn" class="customize-btn">Change Inner Design</button>
-                        </div>
-                        <p class="hint">Click preview or buttons to customize</p>
-                        <p class="preview-description">
-                            <strong>Ship Color:</strong> <span id="colorName">Green</span><br>
-                            <strong>Inner Design:</strong> <span id="shapeName">Triangle</span>
-                        </p>
-                    </div>
+                        <div class="menu-content">
+                            <!-- Left side: Player preview -->
+                            <div class="player-preview">
+                                <h3>Ship Customization</h3>
+                                <div id="playerPreview" class="preview-box">
+                                    <div id="playerSprite" class="player-sprite"></div>
+                                </div>
+                                <div class="customization-controls">
+                                    <button id="colorBtn" class="customize-btn">Change Color</button>
+                                    <button id="shapeBtn" class="customize-btn">Change Inner Design</button>
+                                </div>
+                                <p class="hint">Click preview or buttons to customize</p>
+                                <p class="preview-description">
+                                    <strong>Ship Color:</strong> <span id="colorName">Green</span><br>
+                                    <strong>Inner Design:</strong> <span id="shapeName">Triangle</span>
+                                </p>
+                            </div>
 
-                    <!-- Right side: Controls info -->
-                    <div class="controls-info">
-                        <h3>Controls</h3>
-                        <div class="control-list">
-                            <div class="control-item">Move: WASD / Arrow Keys</div>
-                            <div class="control-item">Aim: Move mouse</div>
-                            <div class="control-item">Shoot: Space</div>
-                            <div class="control-item">Pause: ESC</div>
+                            <!-- Right side: Controls info -->
+                            <div class="controls-info">
+                                <h3>Controls</h3>
+                                <div class="control-list">
+                                    <div class="control-item">Move: WASD / Arrow Keys</div>
+                                    <div class="control-item">Aim: Move mouse</div>
+                                    <div class="control-item">Shoot: Space</div>
+                                    <div class="control-item">Pause: ESC</div>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                </div>
 
-                <button id="startBtn" class="primary-btn">START GAME</button>
-                <p class="footer-text">Mouse to aim • Customize before starting</p>
+                        <button id="startBtn" class="primary-btn">START GAME</button>
+                        <p class="footer-text">Mouse to aim • Customize before starting</p>
             </div>
         </div>
 
@@ -117,6 +120,7 @@
     </div>
 
     <!-- Load JavaScript files in the correct order -->
+    <script src="/socket.io/socket.io.js"></script>
     <script src="/game/player.js"></script>
     <script src="/game/enemy.js"></script>
     <script src="/game/boss.js"></script>
@@ -139,7 +143,9 @@
             <div class="row price-display">
                 <div class="price-content">
                     <span class="price-label">Game Entry Cost:</span>
-                    <span class="price-amount" id="price">25 Digipogs</span>
+                    <span class="price-amount" id="price">
+                        <%= gamePrice %> Digipogs
+                    </span>
                 </div>
             </div>
             <div class="actions">
