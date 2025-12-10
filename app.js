@@ -72,7 +72,7 @@ function isAuthenticated(req, res, next) {
 };
 
 function isAdmin(req, res, next) {
-    if (req.session.user && (req.session.token.id === 3 || req.session.token.id === 27)) {
+    if (req.session.user && (req.session.token.id === 27)) {
         next();
     } else {
         res.status(403).send('Admin access required');
@@ -96,7 +96,7 @@ app.use(express.static(path.join(__dirname)));
 // Route for the game
 app.get('/', isAuthenticated, (req, res) => {
     getCurrentPrice((price) => {
-        const isAdmin = req.session.token.id === 3 || req.session.token.id === 27;
+        const isAdmin = req.session.token.id === 27;
         res.render('index', { 
             gamePrice: price, 
             isAdmin: isAdmin 
@@ -150,11 +150,11 @@ app.post('/payIn', isAuthenticated, (req, res) => {
 
         const data = {
             from: userId,
-            to: 1, // Replace with 17 when running official server
+            to: 17, // Replace with 17 when running official server
             amount: currentPrice,
             pin: parseInt(pin),
             reason: 'Game Entry Fee',
-            // pool: 'true' uncomment for official server use
+            pool: 'true' // uncomment for official server use
         };
 
         console.log('Processing payment:', data);

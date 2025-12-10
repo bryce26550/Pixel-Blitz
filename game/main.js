@@ -95,7 +95,7 @@ class Game {
         this.tanks = [];
         this.sprinters = [];
         this.bosses = [];
-        this.availableBosses = [Blaster, Slasher]; // Add Blaster, Slasher, Sentinel, Railgun, Overlord for all bosses to be available
+        this.availableBosses = [Blaster]; // Add Blaster, Slasher, Sentinel, Railgun, Overlord for all bosses to be available
         this.particles = [];
 
         // Pre-boss wave system
