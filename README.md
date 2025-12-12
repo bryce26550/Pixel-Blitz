@@ -1,6 +1,6 @@
 # Pixel-Blitz
 
->A small, local multiplayer-style bullet-hell prototype built with Node.js, Express, EJS and SQLite.
+>A small, local bullet-hell prototype built with Node.js, Express, EJS and SQLite.
 
 This repository contains the server and client code for a simple browser-playable bullet-hell game. It includes a minimal Express app that serves the frontend, persistent sessions using SQLite, and the game logic under the `game/` folder.
 
