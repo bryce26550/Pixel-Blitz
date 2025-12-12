@@ -1,11 +1,16 @@
+//Constants
+const gameWidth = 800;
+const gameHeight = 600;
+
+// Boss Classes
 class Blaster {
     constructor(x, y, multiplier = 1) {
         this.x = x;
         this.y = y;
         this.width = 80;
         this.height = 60;
-        this.speed = 0.02 * multiplier;
-        this.hp = Math.ceil(75 * multiplier);
+        this.speed = 0.15 * multiplier;
+        this.hp = Math.ceil(85 * multiplier);
         this.maxHp = Math.ceil(75 * multiplier);
         this.shootCooldown = Math.max(400, 800 / multiplier);
         this.lastShootTime = 0;
@@ -121,7 +126,7 @@ class Slasher {
         this.height = 40;
 
         // Health and damage
-        this.hp = Math.ceil(50 * multiplier);
+        this.hp = Math.ceil(65 * multiplier);
         this.maxHp = this.hp;
         this.contactDamage = Math.ceil(8 * multiplier);
 
@@ -224,9 +229,6 @@ class Slasher {
         this.x += this.dashVelocityX * deltaTime;
         this.y += this.dashVelocityY * deltaTime;
 
-        const gameWidth = 800;
-        const gameHeight = 600;
-
         // Check if boss will hit wall BEFORE clamping position
         const willHitWall = (this.x <= 0) ||
             (this.x + this.width >= gameWidth) ||
@@ -257,10 +259,6 @@ class Slasher {
     takeDamage(damage = 1) {
         this.hp -= damage;
     }
-
-    takeDamage(damage = 1) {
-        this.hp -= damage;
-    };
 
     render(ctx) {
         // Get current state for visual effects
@@ -389,13 +387,9 @@ class Sentinel {
         this.height = 60; // Adjust per boss
 
         // Health and damage
-        this.hp = Math.ceil(baseHP * multiplier);
+        this.hp = Math.ceil(125 * multiplier);
         this.maxHp = this.hp;
         this.contactDamage = Math.ceil(baseDamage * multiplier);
-
-
-        // Movement
-        this.speed = baseSpeed * multiplier;
 
         // Boss-specific properties go here
     }
@@ -422,12 +416,12 @@ class Railgun {
         this.height = 60; // Adjust per boss
 
         // Health and damage
-        this.hp = Math.ceil(baseHP * multiplier);
+        this.hp = Math.ceil(50 * multiplier);
         this.maxHp = this.hp;
         this.contactDamage = Math.ceil(baseDamage * multiplier);
 
         // Movement
-        this.speed = baseSpeed * multiplier;
+        this.speed = 0.05 * multiplier;
 
         // Boss-specific properties go here
     }
@@ -450,31 +444,33 @@ class Overlord {
         // Position and size
         this.x = x;
         this.y = y;
-        this.width = 40;  // Adjust per boss
-        this.height = 30; // Adjust per boss
+        this.width = 40;
+        this.height = 30;
 
         // Health and damage
-        this.hp = Math.ceil(35 * multiplier);
+        this.hp = Math.ceil(45 * multiplier);
         this.maxHp = this.hp;
         this.contactDamage = Math.ceil(3 * multiplier);
 
         // Movement
-        this.speed = 0.15 * multiplier;
+        this.preferredDistance = 200;
+        this.moveSpeed = 0.1 * multiplier;
+        this.retreatSpeed = 0.25 * multiplier; // Faster when threatened
+        this.movementDirection = 1; // For side-to-side drift
+        this.lastPlayerDistance = 200; // Track if player is getting closer
+        this.moveState = 'drifting';
+        this.stateTimer = 0;
 
-        // Boss-specific properties go here
-    }
-
-    update(deltaTime, bullets, player, damageMultiplier = 1) {
-        // Boss-specific behavior goes here
-
-        const currentHealthPercentage = this.hp / this.maxHp;
-
-        // In constructor, add:
-        this.spawnTimer = 0;
+        // Wave spawning properties
+        this.waveSpawnTimer = 0;
         this.spawnCooldown = 3500;
+        this.isSpawningWave = false;
+        this.remainingEnemies = [];
+        this.spawnDelay = 500;
+        this.enemySpawnTimer = 0;
         this.lastHealthPercentage = 1.0;
 
-        // Define waves once in constructor
+        // Define waves in constructor
         this.waves = {
             first: [Enemy, Enemy, Shooter],
             second: [Enemy, Enemy, Shooter, Shooter],
@@ -482,6 +478,10 @@ class Overlord {
             fourth: [Tank, Tank, Tank, Sprinter, Shooter, Shooter]
         };
         this.currentWave = this.waves.first;
+    }
+
+    update(deltaTime, bullets, player, damageMultiplier = 1, enemyArrays = null) {
+        const currentHealthPercentage = this.hp / this.maxHp;
 
         // Check for health threshold changes
         if (currentHealthPercentage < 0.75 && this.lastHealthPercentage >= 0.75) {
@@ -493,12 +493,116 @@ class Overlord {
         }
         this.lastHealthPercentage = currentHealthPercentage;
 
-        // Spawn minions
-        this.spawnTimer += deltaTime;
-        if (this.spawnTimer >= this.spawnCooldown && enemyArrays) {
-        this.spawnEnemies(enemyArrays);
-        this.spawnTimer = 0;
+        // Calculate distance and direction to player
+        const dx = player.x - this.x;
+        const dy = player.y - this.y;
+        const distanceToPlayer = Math.sqrt(dx * dx + dy * dy);
+
+        // Determine movement State 
+        const shouldRetreat = distanceToPlayer < this.preferredDistance || (distanceToPlayer < 250 && distanceToPlayer < this.lastPlayerDistance);
+
+        if (shouldRetreat && this.moveState === 'drifting') {
+            this.moveState = 'retreating';
+            this.stateTimer = 0;
+        } else if (!shouldRetreat && this.moveState === 'retreating' && this.stateTimer > 1000) {
+            this.moveState = 'drifting';
+            this.stateTimer = 0;
+        }
+
+        this.stateTimer += deltaTime;
+        this.lastPlayerDistance = distanceToPlayer;
+
+        if (this.moveState === 'retreating') {
+            // ONLY retreating movement - no drifting
+            let escapeX = dx > 0 ? -1 : 1;
+            let escapeY = dy > 0 ? -1 : 1;
+
+            if (this.x <= 50) escapeX = Math.max(0.5, escapeX);
+            if (this.x >= gameWidth - this.width - 50) escapeX = Math.min(-0.5, escapeX);
+            if (this.y <= 20) escapeY = Math.max(0.5, escapeY);
+
+            this.x += escapeX * this.retreatSpeed * deltaTime;
+            this.y += escapeY * this.retreatSpeed * deltaTime;
+
+        } else {
+
+            // ONLY drifting movement - no retreat
+            this.x += this.movementDirection * this.moveSpeed * deltaTime;
+
+            // Reverse direction at screen edges
+            if (this.x <= 50 || this.x >= gameWidth - this.width - 50) {
+                this.movementDirection *= -1;
+            }
+
+            // Gentle return to safe zone
+            if (this.y > this.safeZoneY + 20) {
+                this.y -= this.moveSpeed * deltaTime * 0.5;
+            }
+        }
+
+        // Keep within screen bounds (with some margin)
+        this.x = Math.max(10, Math.min(gameWidth - this.width - 10, this.x));
+        this.y = Math.max(10, Math.min(gameHeight - this.height - 50, this.y));
+
+        // Wave spawning logic
+        this.waveSpawnTimer += deltaTime;
+        if (this.waveSpawnTimer >= this.spawnCooldown && enemyArrays) {
+            this.spawnEnemies(enemyArrays);
+            this.waveSpawnTimer = 0;
+        }
+
+        // Individual enemy spawning logic (you still need this!)
+        // Spawn one enemy and remove it from remaining
+        if (this.isSpawningWave && this.remainingEnemies.length > 0) {
+            this.enemySpawnTimer += deltaTime;
+            if (this.enemySpawnTimer >= this.spawnDelay) {
+                // get next enemy spawn
+                const EnemyClass = this.remainingEnemies.shift(); //remove first enemy from array
+
+                // Create enemy instance
+                const spawnX = Math.random() * (gameWidth - 40);
+                const spawnY = -40; // Spawn above the screen
+                const enemy = new EnemyClass(spawnX, spawnY, damageMultiplier);
+                enemy.minion = true;
+
+                // Add to appropriate enemy array
+                if (EnemyClass === Enemy) {
+                    enemyArrays.enemies.push(enemy);
+                } else if (EnemyClass === Shooter) {
+                    enemyArrays.shooters.push(enemy);
+                } else if (EnemyClass === Tank) {
+                    enemyArrays.tanks.push(enemy);
+                } else if (EnemyClass === Sprinter) {
+                    enemyArrays.sprinters.push(enemy);
+                }
+
+                //reset spawn timer
+                this.enemySpawnTimer = 0;
+
+                // Check if wave is complete
+                if (this.remainingEnemies.length === 0) {
+                    this.isSpawningWave = false;
+                }
+            }
+        }
     }
+
+
+    // Methods OUTSIDE of update
+    spawnEnemies(enemyArrays) {
+        if (!this.isSpawningWave) {
+            this.isSpawningWave = true;
+            this.remainingEnemies = [...this.currentWave];
+            this.shuffleArray(this.remainingEnemies);
+            this.enemySpawnTimer = 0;
+        }
+    }
+
+    shuffleArray(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
     }
 
     takeDamage(damage = 1) {
@@ -506,6 +610,61 @@ class Overlord {
     }
 
     render(ctx) {
-        // Boss appearance
+        // Command platform base
+        ctx.fillStyle = '#2F1B69'; // Dark purple base
+        ctx.fillRect(this.x - 5, this.y + this.height - 8, this.width + 10, 12);
+
+        // Main body - ornate command module
+        ctx.fillStyle = '#4B0082'; // Deep purple
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+
+        // Inner command chamber
+        ctx.fillStyle = '#6A0DAD'; // Lighter purple
+        ctx.fillRect(this.x + 4, this.y + 4, this.width - 8, this.height - 8);
+
+        // Command spires/antennae (for summoning)
+        ctx.fillStyle = '#8B008B'; // Magenta spires
+        ctx.fillRect(this.x + 5, this.y - 6, 3, 8);
+        ctx.fillRect(this.x + this.width - 8, this.y - 6, 3, 8);
+        ctx.fillRect(this.x + this.width / 2 - 1, this.y - 8, 3, 10);
+
+        // Central command core (changes color with health)
+        const healthPercent = this.hp / this.maxHp;
+        let coreColor = '#00FFFF'; // Cyan when healthy
+        if (healthPercent < 0.25) {
+            coreColor = '#FF0000'; // Red when critical
+        } else if (healthPercent < 0.5) {
+            coreColor = '#FF8C00'; // Orange when damaged
+        } else if (healthPercent < 0.75) {
+            coreColor = '#FFFF00'; // Yellow when wounded
+        }
+
+        ctx.fillStyle = coreColor;
+        ctx.beginPath();
+        ctx.arc(this.x + this.width / 2, this.y + this.height / 2, 6, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Pulsing glow effect on core
+        const pulseIntensity = Math.sin(Date.now() * 0.005) * 0.3 + 0.7;
+        ctx.strokeStyle = `rgba(${healthPercent < 0.5 ? '255, 0, 0' : '0, 255, 255'}, ${pulseIntensity})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(this.x + this.width / 2, this.y + this.height / 2, 8, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Health bar
+        ctx.fillStyle = 'darkred';
+        ctx.fillRect(this.x, this.y - 12, this.width, 8);
+        ctx.fillStyle = 'lime';
+        ctx.fillRect(this.x, this.y - 12, (this.hp / this.maxHp) * this.width, 8);
+
+        // Boss label
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 10px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('OVERLORD', this.x + this.width / 2, this.y - 16);
+        ctx.textAlign = 'left';
     }
+
+
 }
