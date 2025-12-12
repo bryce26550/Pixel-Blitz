@@ -95,7 +95,7 @@ class Game {
         this.tanks = [];
         this.sprinters = [];
         this.bosses = [];
-        this.availableBosses = [Blaster, Slasher]; // Add Blaster, Slasher, Sentinel, Railgun, Overlord for all bosses to be available
+        this.availableBosses = [Blaster, Slasher, Overlord]; // Add Blaster, Slasher, Sentinel, Railgun, Overlord for all bosses to be available
         this.particles = [];
 
         // Pre-boss wave system
@@ -820,10 +820,10 @@ class Game {
         // Update bosses
         this.bosses = this.bosses.filter(boss => {
             boss.update(deltaTime, this.bullets, this.player, this.enemyDamageMultiplier, {
-                enemies:this.enemies,
-                shooters:this.shooters,
-                tanks:this.tanks,
-                sprinters:this.sprinters
+                enemies: this.enemies,
+                shooters: this.shooters,
+                tanks: this.tanks,
+                sprinters: this.sprinters
             });
             return boss.y < this.height + 60 && boss.hp > 0;
         });
@@ -856,9 +856,13 @@ class Game {
                     if (enemy.hp <= 0) {
                         this.createExplosion(enemy.x, enemy.y);
                         this.enemies.splice(j, 1);
-                        this.score += 10;
-                        this.scoreThisWave += 10;
-                        this.waveProgress += 10;
+
+                        if (!enemy.minion) {
+                            this.score += 10;
+                            this.scoreThisWave += 10;
+                            this.waveProgress += 10;
+                        }
+
                         this.addExp(5);
                         if (this.player.lifeSteal && this.player.health < this.player.maxHealth) {
                             this.player.health++;
@@ -882,9 +886,11 @@ class Game {
                     if (shooter.hp <= 0) {
                         this.createExplosion(shooter.x, shooter.y);
                         this.shooters.splice(j, 1);
-                        this.score += 25;
-                        this.scoreThisWave += 25;
-                        this.waveProgress += 25;
+                        if (!shooter.minion) {
+                            this.score += 25;
+                            this.scoreThisWave += 25;
+                            this.waveProgress += 25;
+                        }
                         this.addExp(12);
                         if (this.player.lifeSteal && this.player.health < this.player.maxHealth) {
                             this.player.health++;
@@ -902,11 +908,14 @@ class Game {
                     this.createExplosion(bullet.x, bullet.y);
 
                     if (this.tanks[j].hp <= 0) {
+                        const tanks = this.tanks[j];
                         this.createExplosion(this.tanks[j].x, this.tanks[j].y);
                         this.tanks.splice(j, 1);
-                        this.score += 50;
-                        this.scoreThisWave += 50;
-                        this.waveProgress += 50;
+                        if (!tanks.minion) {
+                            this.score += 50;
+                            this.scoreThisWave += 50;
+                            this.waveProgress += 50;
+                        }
                         this.addExp(25);
                         if (this.player.lifeSteal && this.player.health < this.player.maxHealth) {
                             this.player.health++;
@@ -924,11 +933,14 @@ class Game {
                     this.createExplosion(bullet.x, bullet.y);
 
                     if (this.sprinters[j].hp <= 0) {
+                        const sprinters = this.sprinters[j];
                         this.createExplosion(this.sprinters[j].x, this.sprinters[j].y);
                         this.sprinters.splice(j, 1);
-                        this.score += 75;
-                        this.scoreThisWave += 75;
-                        this.waveProgress += 75;
+                        if (!sprinters.minion) {
+                            this.score += 75;
+                            this.scoreThisWave += 75;
+                            this.waveProgress += 75;
+                        }
                         this.addExp(35);
                         if (this.player.lifeSteal && this.player.health < this.player.maxHealth) {
                             this.player.health++;
@@ -948,6 +960,7 @@ class Game {
                     if (this.bosses[j].hp <= 0) {
                         this.createExplosion(this.bosses[j].x, this.bosses[j].y);
                         this.bosses.splice(j, 1);
+                        this.clearMinions();
                         this.score += 200;
                         this.scoreThisWave += 200;
                         this.waveProgress += this.waveRequirement; // Complete the wave
@@ -1018,6 +1031,21 @@ class Game {
 
         index = this.bosses.indexOf(enemy);
         if (index > -1) this.bosses.splice(index, 1);
+    }
+
+    clearMinions() {
+        // Remove all minions
+        this.enemies = this.enemies.filter(enemy => { !enemy.minion });
+        this.createExplosion(this.enemies[j].x, this.enemies[j].y);
+        this.shooters = this.shooters.filter(shooter => !shooter.minion);
+        this.createExplosion(this.shooters[j].x, this.shooters[j].y);
+        this.tanks = this.tanks.filter(tank => !tank.minion);
+        this.createExplosion(this.tanks[j].x, this.tanks[j].y);
+        this.sprinters = this.sprinters.filter(sprinter => !sprinter.minion);
+        this.createExplosion(this.sprinters[j].x, this.sprinters[j].y);
+
+        console.log('All minions cleared after boss defeat');
+
     }
 
     damagePlayer() {
@@ -1213,7 +1241,7 @@ clientSocket.on('disconnect', () => {
 
 clientSocket.on('priceUpdate', (data) => {
     console.log('Received price update:', data);
-    
+
     // Update the price display
     const priceElement = document.getElementById('price');
     if (priceElement) {

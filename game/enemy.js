@@ -81,8 +81,8 @@ class Tank {
         this.width = 50;
         this.height = 40;
         this.speed = 0.03 * multiplier;
-        this.hp = Math.ceil(3 * multiplier);
-        this.maxHp = Math.ceil(3 * multiplier);
+        this.hp = Math.ceil(5 * multiplier);
+        this.maxHp = Math.ceil(this.hp * multiplier);
         this.contactDamage = Math.ceil(2 * multiplier);
         this.shootCooldown = Math.max(1000, 2000 / multiplier);
         this.lastShootTime = 0;
