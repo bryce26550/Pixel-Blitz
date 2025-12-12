@@ -1035,13 +1035,17 @@ class Game {
 
     clearMinions() {
         // Remove all minions
-        this.enemies = this.enemies.filter(enemy => {!enemy.minion});
+        this.enemies = this.enemies.filter(enemy => { !enemy.minion });
+        this.createExplosion(this.enemies[j].x, this.enemies[j].y);
         this.shooters = this.shooters.filter(shooter => !shooter.minion);
+        this.createExplosion(this.shooters[j].x, this.shooters[j].y);
         this.tanks = this.tanks.filter(tank => !tank.minion);
+        this.createExplosion(this.tanks[j].x, this.tanks[j].y);
         this.sprinters = this.sprinters.filter(sprinter => !sprinter.minion);
+        this.createExplosion(this.sprinters[j].x, this.sprinters[j].y);
 
         console.log('All minions cleared after boss defeat');
-        
+
     }
 
     damagePlayer() {
