@@ -5,19 +5,24 @@ const gameHeight = 600;
 // Boss Classes
 class Blaster {
     constructor(x, y, multiplier = 1) {
+        this.width = 60;
+        this.height = 40;
+        this.hp = Math.ceil(85 * multiplier);
+        this.maxHp = Math.ceil(this.hp * multiplier);
+
+        // Movement
         this.x = x;
         this.y = y;
-        this.width = 80;
-        this.height = 60;
-        this.speed = 0.15 * multiplier;
-        this.hp = Math.ceil(85 * multiplier);
-        this.maxHp = Math.ceil(75 * multiplier);
+        this.speed = 0.10 * multiplier;
+        this.movementDirection = 1;
+        this.targetX = Math.random() * (gameWidth - this.width);
+        this.targetY = Math.random() * (gameHeight - this.height);
+
+        this.contactDamage = Math.ceil(4 * multiplier);
         this.shootCooldown = Math.max(400, 800 / multiplier);
         this.lastShootTime = 0;
-        this.contactDamage = Math.ceil(4 * multiplier);
         this.specialAttackCooldown = Math.max(3000, 5000 / multiplier);
         this.lastSpecialAttack = 0;
-        this.movementDirection = 1;
         this.phase = 1;
     }
 
@@ -28,11 +33,20 @@ class Blaster {
             this.phase = 2;
         }
 
-        this.y += this.speed * deltaTime;
-        this.x += this.movementDirection * 0.05 * deltaTime;
+        this.differenceX = this.targetX - this.x;
+        this.differenceY = this.targetY - this.y;
+        this.distance = Math.sqrt(this.differenceX * this.differenceX + this.differenceY * this.differenceY);
 
-        if (this.x <= 0 || this.x >= 800 - this.width) {
-            this.movementDirection *= -1;
+        if (this.distance > 0) {
+            this.directionX = this.differenceX / this.distance;
+            this.directionY = this.differenceY / this.distance;
+            this.x += this.directionX * this.speed * deltaTime;
+            this.y += this.directionY * this.speed * deltaTime;
+        }
+
+        if (this.distance < 5) {
+            this.targetX = Math.random() * (gameWidth - this.width);
+            this.targetY = Math.random() * (gameHeight - this.height);
         }
 
         this.lastShootTime += deltaTime;
@@ -89,30 +103,128 @@ class Blaster {
     }
 
     render(ctx) {
-        ctx.fillStyle = '#8B0000';
+        const healthPercent = this.hp / (85 * 1); // Fix health calculation
+        const recentlyFired = this.lastShootTime < 300;
+        const centerX = this.x + this.width / 2;
+        const centerY = this.y + this.height / 2;
+
+        // LAYER 1: Main hull (draw this FIRST, at the bottom)
+        ctx.fillStyle = '#8B0000'; // Dark red base
         ctx.fillRect(this.x, this.y, this.width, this.height);
 
+        // Thin structural beams (top/bottom edges)
+        ctx.fillStyle = '#777777';
+        ctx.fillRect(this.x + 2, this.y, this.width - 4, 2);
+        ctx.fillRect(this.x + 2, this.y + this.height - 2, this.width - 4, 2);
+        // Side beams
+        ctx.fillRect(this.x, this.y + 2, 2, this.height - 4);
+        ctx.fillRect(this.x + this.width - 2, this.y + 2, 2, this.height - 4);
+
+        // LAYER 2: Inner sections (on top of hull)
+        let armorColor = '#B22222';
+        if (this.phase === 3) {
+            armorColor = '#FF4500';
+        } else if (this.phase === 2) {
+            armorColor = '#DC143C';
+        }
+
+        ctx.fillStyle = armorColor;
+        ctx.fillRect(this.x + 8, this.y + 8, this.width - 16, this.height - 16);
+
+        // Grey armor plating panels (contrasting panels between red sections)
         ctx.fillStyle = '#666666';
-        ctx.fillRect(this.x + 10, this.y + 10, this.width - 20, this.height - 20);
+        // corner plates
+        ctx.fillRect(this.x + 6, this.y + 6, 10, 8);
+        ctx.fillRect(this.x + this.width - 16, this.y + 6, 10, 8);
+        ctx.fillRect(this.x + 6, this.y + this.height - 14, 10, 8);
+        ctx.fillRect(this.x + this.width - 16, this.y + this.height - 14, 10, 8);
+        // center side panels
+        ctx.fillRect(this.x + 4, this.y + 12, 6, this.height - 24);
+        ctx.fillRect(this.x + this.width - 10, this.y + 12, 6, this.height - 24);
 
-        ctx.fillStyle = '#333333';
-        ctx.fillRect(this.x + 5, this.y + 20, 10, 20);
-        ctx.fillRect(this.x + this.width - 15, this.y + 20, 10, 20);
+        // thin structural framework (small interior ribs)
+        ctx.fillStyle = '#7a7a7a';
+        ctx.fillRect(this.x + 14, this.y + 10, 2, this.height - 20);
+        ctx.fillRect(this.x + this.width - 16, this.y + 10, 2, this.height - 20);
+        ctx.fillRect(this.x + 10, this.y + this.height / 2 - 1, this.width - 20, 2);
 
-        const coreColor = this.phase === 3 ? '#ff0000' : this.phase === 2 ? '#ff6600' : '#ffff00';
-        ctx.fillStyle = coreColor;
-        ctx.fillRect(this.x + this.width / 2 - 10, this.y + this.height / 2 - 10, 20, 20);
+        // LAYER 3: All details (draw these LAST, on top)
 
-        // Health bar
+        // Weapon ports -> new gun design: dark grey square bases (5x3) + rectangular barrels (3x5) that extend beyond main body
+        const portColorBase = '#404040'; // grey base for weapon mounts
+        const barrelColor = '#2F2F2F'; // darker barrel
+        const numPorts = this.phase === 3 ? 5 : this.phase === 2 ? 3 : 1;
+
+        // Calculate spacing so ports are nicely distributed across the lower front area
+        const availableWidth = this.width - 24;
+        const spacing = numPorts > 1 ? (availableWidth - 5) / (numPorts - 1) : 0;
+
+        for (let i = 0; i < numPorts; i++) {
+            const baseX = this.x + 12 + Math.round(i * spacing);
+            const baseY = this.y + this.height - 10;
+            // square base (5 x 3)
+            ctx.fillStyle = portColorBase;
+            ctx.fillRect(baseX, baseY, 5, 3);
+
+            // barrel (3 x 5) that extends beyond the main body
+            const barrelW = 3;
+            const barrelH = 5;
+            const barrelX = baseX + 1;
+            const barrelY = this.y + this.height - 4; // starts near bottom and extends past the hull
+            ctx.fillStyle = barrelColor;
+            ctx.fillRect(barrelX, barrelY, barrelW, barrelH);
+
+            // Small muzzle flash when recently fired (stick out past body)
+            if (recentlyFired) {
+                ctx.fillStyle = '#FFFF66';
+                ctx.fillRect(barrelX, barrelY + barrelH - 1, barrelW, 2);
+            }
+        }
+
+        ctx.fillStyle = '#00FF00'; // Bright green
+        ctx.fillRect(centerX - 10, centerY - 2, 20, 4);
+        ctx.fillRect(centerX - 2, centerY - 10, 4, 20);
+
+        // Power core (bright and visible) - keep pulsating behavior
+        const coreColors = ['#FFFF00', '#FF6600', '#FFFFFF']; // Yellow, Orange, White
+        ctx.fillStyle = coreColors[this.phase - 1];
+
+        let coreSize = 8;
+        if (this.phase >= 2) {
+            coreSize += Math.sin(Date.now() * 0.008) * 3;
+        }
+
+        ctx.fillRect(centerX - coreSize / 2, centerY - coreSize / 2, coreSize, coreSize);
+
+        // Core subtle glow ring
+        ctx.strokeStyle = this.phase === 3 ? 'rgba(255,51,102,0.35)' : this.phase === 2 ? 'rgba(255,153,204,0.25)' : 'rgba(255,204,221,0.18)';
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, coreSize + 6, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Heat vents (bright orange on top) — keep as vents but add grey vent frames
+        if (this.phase >= 2) {
+            for (let i = 0; i < 4; i++) {
+                const ventX = this.x + 15 + (i * 12);
+                // grey vent frame
+                ctx.fillStyle = '#555555';
+                ctx.fillRect(ventX - 1, this.y + 2, 6, 10);
+                // inner heat color
+                ctx.fillStyle = '#FF4500';
+                ctx.fillRect(ventX, this.y + 3, 4, 8);
+            }
+        }
+
+        // Health bar and label (always on top)
         ctx.fillStyle = 'red';
         ctx.fillRect(this.x, this.y - 12, this.width, 8);
         ctx.fillStyle = 'green';
-        ctx.fillRect(this.x, this.y - 12, (this.hp / this.maxHp) * this.width, 8);
+        ctx.fillRect(this.x, this.y - 12, healthPercent * this.width, 8);
 
         ctx.fillStyle = 'white';
-        ctx.font = '12px Arial';
+        ctx.font = 'bold 12px Arial';
         ctx.textAlign = 'center';
-        ctx.fillText('BLASTER', this.x + this.width / 2, this.y - 16);
+        ctx.fillText('BLASTER', centerX, this.y - 16);
         ctx.textAlign = 'left';
     }
 }
@@ -122,8 +234,10 @@ class Slasher {
         // Position and size
         this.x = x;
         this.y = y;
-        this.width = 60;
-        this.height = 40;
+        this.width = 50;
+        this.height = 60;
+        this.currentAngle = Math.PI / 2;
+        this.rotationSpeed = 0.002; // Radians per millisecond
 
         // Health and damage
         this.hp = Math.ceil(65 * multiplier);
@@ -139,7 +253,7 @@ class Slasher {
         this.lockOnDuration = 1500;
         this.dashSpeed = 1.2 * multiplier;
         this.dashDamage = Math.ceil(16 * multiplier);
-        this.dashCooldown = 5000;
+        this.dashCooldown = 3000;
         this.cooldownTimer = 0; // Start ready to dash immediately
         this.dashRange = 300;
 
@@ -151,6 +265,32 @@ class Slasher {
     }
 
     update(deltaTime, bullets, player, damageMultiplier = 1) {
+        // Only track player when not dashing or stunned
+        if (this.dashState !== 'dashing' && this.dashState !== 'cooldown') {
+            // Get angle to boss for orientation
+            const dx = player.x - this.x;
+            const dy = player.y - this.y;
+            const targetAngle = Math.atan2(dy, dx);
+
+            // Handle angle wrapping
+            let angleDiff = targetAngle - this.currentAngle;
+            if (angleDiff > Math.PI) {
+                angleDiff -= Math.PI * 2;
+            } else if (angleDiff < -Math.PI) {
+                angleDiff += Math.PI * 2;
+            }
+
+            // Rotate toward target
+            this.currentAngle += angleDiff * this.rotationSpeed * deltaTime;
+
+            // Rotate toward target
+            this.currentAngle += angleDiff * this.rotationSpeed * deltaTime;
+        }
+
+        if (this.currentAngle > Math.PI * 2) {
+            this.currentAngle -= Math.PI * 2;
+        }
+
         if (this.cooldownTimer > 0) {
             this.cooldownTimer -= deltaTime;
         }
@@ -260,107 +400,6 @@ class Slasher {
         this.hp -= damage;
     }
 
-    render(ctx) {
-        // Get current state for visual effects
-        const isDashing = this.dashState === 'dashing';
-        const isLocking = this.dashState === 'locking';
-        const isCharging = this.dashState === 'locking' && this.lockOnTime > this.lockOnDuration * 0.5;
-
-        // Add dash trail effect
-        if (isDashing) {
-            this.renderDashTrail(ctx);
-        }
-
-        // Main hull - color changes based on state
-        let hullColor = '#7f001f'; // Default dark red
-        if (isDashing) {
-            hullColor = '#ff0000'; // Bright red when dashing
-        } else if (isLocking) {
-            // Pulsing effect during lock-on
-            const pulseIntensity = Math.sin(Date.now() * 0.01) * 0.3 + 0.7;
-            hullColor = `rgba(255, 51, 102, ${pulseIntensity})`;
-        }
-
-        ctx.fillStyle = hullColor;
-        ctx.fillRect(this.x, this.y, this.width, this.height);
-
-        // Inner panel
-        ctx.fillStyle = '#555555';
-        ctx.fillRect(this.x + 8, this.y + 8, this.width - 16, this.height - 16);
-
-        // Enhanced blade slashes - animate during lock-on
-        ctx.strokeStyle = isCharging ? '#ff3366' : '#222222';
-        ctx.lineWidth = isCharging ? 3 : 2;
-
-        for (let i = 0; i < 3; i++) {
-            const sx = this.x + 6 + i * 12;
-            const sy = this.y + 6 + (i % 2 ? 0 : 6);
-
-            // Add glow effect when charging
-            if (isCharging) {
-                ctx.shadowColor = '#ff3366';
-                ctx.shadowBlur = 5;
-            }
-
-            ctx.beginPath();
-            ctx.moveTo(sx, sy);
-            ctx.lineTo(sx + 8, sy + 14);
-            ctx.stroke();
-
-            ctx.shadowBlur = 0; // Reset shadow
-        }
-
-        // Core triangle - more dramatic state changes
-        let coreColor = '#ffccdd'; // Default light pink
-        let coreSize = 8;
-
-        if (isDashing) {
-            coreColor = '#ffffff'; // White hot during dash
-            coreSize = 12;
-        } else if (isLocking) {
-            coreColor = '#ff3366'; // Hot pink during lock-on
-            coreSize = 10;
-            // Add pulsing
-            coreSize += Math.sin(Date.now() * 0.02) * 2;
-        }
-
-        ctx.fillStyle = coreColor;
-        ctx.beginPath();
-        const cx = this.x + this.width / 2;
-        const cy = this.y + this.height / 2;
-        ctx.moveTo(cx, cy - coreSize);
-        ctx.lineTo(cx - coreSize, cy + coreSize);
-        ctx.lineTo(cx + coreSize, cy + coreSize);
-        ctx.closePath();
-        ctx.fill();
-
-        // Enhanced core glow
-        if (isDashing) {
-            // Intense white glow during dash
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.arc(cx, cy, coreSize + 8, 0, Math.PI * 2);
-            ctx.stroke();
-        } else if (isLocking) {
-            // Pulsing red glow during lock-on
-            const glowIntensity = Math.sin(Date.now() * 0.015) * 0.4 + 0.6;
-            ctx.strokeStyle = `rgba(255, 51, 102, ${glowIntensity})`;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.arc(cx, cy, coreSize + 6, 0, Math.PI * 2);
-            ctx.stroke();
-        }
-
-        // Health bar
-        ctx.fillStyle = 'darkred';
-        ctx.fillRect(this.x, this.y - 10, this.width, 6);
-        ctx.fillStyle = isDashing ? 'white' : 'lime';
-        ctx.fillRect(this.x, this.y - 10, (Math.max(0, this.hp) / this.maxHp) * this.width, 6);
-    }
-
-    // Add these helper methods to your Slasher class:
-
     renderDashTrail(ctx) {
         // Create motion blur effect
         const trailLength = 5;
@@ -371,9 +410,121 @@ class Slasher {
             const trailY = this.y - (this.dashVelocityY * i * 20);
             const opacity = trailOpacity * (1 - i / trailLength);
 
-            ctx.fillStyle = `rgba(255, 0, 0, ${opacity})`;
+            ctx.fillStyle = `rgba(0, 50, 255, ${opacity})`;
             ctx.fillRect(trailX, trailY, this.width, this.height);
         }
+    }
+
+    render(ctx) {
+        // Define the coordinates (relative to center after rotation)
+        const leftWingX = -this.width / 2;
+        const leftWingY = -this.height / 2;
+        const rightWingX = this.width / 2;
+        const rightWingY = -this.height / 2;
+        const leftNotchX = -this.width / 2 + 25;
+        const leftNotchY = -this.height / 2 + 20;
+        const rightNotchX = this.width / 2 - 25;
+        const rightNotchY = -this.height / 2 + 20;
+        const bottomTipX = 0;
+        const bottomTipY = this.height / 2;
+        const halfwayPoint = 0;
+        const stripStartX = 0;
+        const stripStartY = this.height / 2;
+        const leftStripTop = -12;
+        const rightStripTop = 12;
+
+
+        // Get current state for visual effects
+        const isDashing = this.dashState === 'dashing';
+        const isLocking = this.dashState === 'locking';
+        const centerX = this.x + this.width / 2;
+        const centerY = this.y + this.height / 2;
+
+        // Add dash trail effect
+        if (isDashing) {
+            this.renderDashTrail(ctx);
+        }
+
+        // ROTATION: Save canvas state, move to center, rotate
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        ctx.rotate(this.currentAngle - Math.PI / 2); // Rotate to face movement direction
+
+        // Set color
+        ctx.fillStyle = '#a7a7a7ff'; // Dark silver
+        ctx.beginPath();
+        ctx.moveTo(leftWingX, leftWingY);           // Start at left wing
+        ctx.lineTo(leftNotchX, leftNotchY);         // Go to left notch point
+        ctx.lineTo(rightNotchX, rightNotchY);       // Go to right notch point  
+        ctx.lineTo(rightWingX, rightWingY);         // Go to right wing
+        ctx.lineTo(bottomTipX, bottomTipY);         // Go to bottom tip
+        ctx.closePath();                            // Back to start
+        ctx.fill();
+
+        // Wing strips
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'blue';
+        ctx.beginPath();
+        ctx.moveTo(leftStripTop, halfwayPoint);
+        ctx.lineTo(stripStartX, stripStartY);
+        ctx.moveTo(rightStripTop, halfwayPoint);
+        ctx.lineTo(stripStartX, stripStartY);
+        ctx.stroke();
+
+        // Core triangle - more dramatic state changes
+        let coreColor = 'blue'; // Default blue
+        let coreSize = 8;
+
+        if (isDashing) {
+            coreColor = '#ffffffff'; // White hot during dash
+            coreSize = 12;
+        } else if (isLocking) {
+            coreColor = '#008ddfff'; // Hot blue during lock-on
+            coreSize = 10;
+            // Add pulsing
+            coreSize += Math.sin(Date.now() * 0.02) * 2;
+        }
+
+        ctx.fillStyle = coreColor;
+        ctx.beginPath();
+        ctx.moveTo(0, 0 - coreSize);           // Top point
+        ctx.lineTo(0 - coreSize, 0 + coreSize); // Bottom left
+        ctx.lineTo(0 + coreSize, 0 + coreSize); // Bottom right
+        ctx.closePath();
+        ctx.fill();
+
+        // Enhanced core glow
+        if (isDashing) {
+            // Intense white glow during dash
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(0, 0, coreSize + 8, 0, Math.PI * 2);
+            ctx.stroke();
+        } else if (isLocking) {
+            // Pulsing blue glow during lock-on
+            const glowIntensity = Math.sin(Date.now() * 0.015) * 0.4 + 0.6;
+            ctx.strokeStyle = `rgba(0, 75, 255, ${glowIntensity})`;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(0, 0, coreSize + 6, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
+        // Restore canvas state
+        ctx.restore();
+
+        // Health bar
+        ctx.fillStyle = 'darkred';
+        ctx.fillRect(this.x, this.y - 10, this.width, 6);
+        ctx.fillStyle = isDashing ? 'white' : 'lime';
+        ctx.fillRect(this.x, this.y - 10, (Math.max(0, this.hp) / this.maxHp) * this.width, 6);
+
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 12px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('Slasher', centerX, this.y - 16);
+        ctx.textAlign = 'left';
     }
 
 }
@@ -610,6 +761,7 @@ class Overlord {
     }
 
     render(ctx) {
+        const centerX = this.x + this.width / 2;
         // Command platform base
         ctx.fillStyle = '#2F1B69'; // Dark purple base
         ctx.fillRect(this.x - 5, this.y + this.height - 8, this.width + 10, 12);
@@ -662,7 +814,7 @@ class Overlord {
         ctx.fillStyle = 'white';
         ctx.font = 'bold 10px Arial';
         ctx.textAlign = 'center';
-        ctx.fillText('OVERLORD', this.x + this.width / 2, this.y - 16);
+        ctx.fillText('OVERLORD', centerX, this.y - 16);
         ctx.textAlign = 'left';
     }
 
