@@ -529,24 +529,15 @@ class Slasher {
 
 }
 
-class Sentinel {
+class SpikedWall {
     constructor(x, y, multiplier = 1) {
-        // Position and size
         this.x = x;
         this.y = y;
-        this.width = 80;  // Adjust per boss
-        this.height = 60; // Adjust per boss
-
-        // Health and damage
-        this.hp = Math.ceil(125 * multiplier);
-        this.maxHp = this.hp;
-        this.contactDamage = Math.ceil(baseDamage * multiplier);
-
-        // Boss-specific properties go here
-    }
-
-    update(deltaTime, bullets, player, damageMultiplier = 1) {
-        // Boss-specific behavior goes here
+        this.width = 30;
+        this.height = 40;
+        this.hp = 5;
+        this.maxHp = 5;
+        this.contactDamage = Math.ceil(3 * multiplier);
     }
 
     takeDamage(damage = 1) {
@@ -554,9 +545,122 @@ class Sentinel {
     }
 
     render(ctx) {
-        // Boss appearance
+        ctx.fillStyle = 'grey';
+        ctx.fillRect(this.x, this.y, this.width, this.height);
     }
 }
+
+class Sentinel {
+    constructor(x, y, multiplier = 1) {
+        // Position and size
+        this.x = x;
+        this.y = y;
+        this.width = 60;
+        this.height = 80;
+
+        // Health and damage
+        this.hp = Math.ceil(125 * multiplier);
+        this.maxHp = this.hp;
+
+        // Wall system
+        this.walls = [];
+        this.wallSpawnTimer = 0;
+        this.wallSpawnCooldown = 5000; // Respawn walls every 5 seconds
+
+        // Burst firing system
+        this.burstTimer = 0;
+        this.burstDuration = 3000; // 3 seconds of firing
+        this.burstCooldown = 3500; // 5 seconds between bursts
+        this.isBursting = false;
+        this.burstShotInterval = 50; // Fire every 150ms during burst
+    }
+
+    update(deltaTime, bullets, player, damageMultiplier = 1) {
+        const dx = (player.x + player.width / 2) - (this.x + this.width / 2);
+        const dy = (player.y + player.height / 2) - (this.y + this.height / 2);
+
+        // Handle cooldown when NOT bursting
+        if (!this.isBursting) {
+            this.burstCooldown -= deltaTime;
+            if (this.burstCooldown <= 0) {
+                // Start burst
+                this.isBursting = true;
+                this.burstTimer = 0;
+                this.burstDuration = 3000; // Reset duration for next burst
+            }
+        } else {
+            // Handle active burst
+            this.burstDuration -= deltaTime; // Decrease every frame
+            this.burstTimer += deltaTime;    // Increase every frame
+
+            // Check if time to shoot
+            if (this.burstTimer >= this.burstShotInterval) {
+                // Shoot and reset burstTimer
+                this.Shoot(bullets, player, damageMultiplier);
+                this.burstTimer = 0;
+            }
+
+            // Check if burst is over
+            if (this.burstDuration <= 0) {
+                // End burst
+                this.isBursting = false;
+                this.burstTimer = 0;
+                this.burstCooldown = 5000; // 5 seconds between bursts
+            }
+        }
+    }
+
+    Shoot(bullets, player, damageMultiplier = 1) {
+        const dx = (player.x + player.width / 2) - (this.x + this.width / 2);
+        const dy = (player.y + player.height / 2) - (this.y + this.height / 2);
+
+        // Base angle to player
+        const baseAngle = Math.atan2(dy, dx);
+
+        // Random spread in degrees (-15 to +15)
+        const spreadDegrees = (Math.random() - 0.5) * 30;
+
+        // Convert to radians and add to base angle
+        const spreadRadians = spreadDegrees * (Math.PI / 180);
+        const finalAngle = baseAngle + spreadRadians;
+
+        const speed = 0.25;
+        const bulletVx = Math.cos(finalAngle) * speed;
+        const bulletVy = Math.sin(finalAngle) * speed;
+
+        const bullet = new Bullet(this.x + this.width / 2, this.y + this.height / 2, false);
+        bullet.vx = bulletVx;
+        bullet.vy = bulletVy;
+        bullet.damage = Math.ceil((this.contactDamage || 1) * damageMultiplier);
+        bullets.push(bullet);
+    }
+
+    takeDamage(damage = 1) {
+        this.hp -= damage;
+    }
+
+    render(ctx) {
+        const centerX = this.x + this.width / 2;
+
+        // Boss appearance
+        ctx.fillStyle = 'gray';
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+
+        // Health bar
+        ctx.fillStyle = 'darkred';
+        ctx.fillRect(this.x, this.y - 12, this.width, 8);
+        ctx.fillStyle = 'lime';
+        ctx.fillRect(this.x, this.y - 12, (this.hp / this.maxHp) * this.width, 8);
+
+        // Boss label
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 10px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('SENTINEL', centerX, this.y - 16);
+        ctx.textAlign = 'left';
+    }
+}
+
 
 class Railgun {
     constructor(x, y, multiplier = 1) {
