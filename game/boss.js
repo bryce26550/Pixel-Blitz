@@ -529,24 +529,62 @@ class Slasher {
 
 }
 
-class SpikedWall {
+class Wall {
     constructor(x, y, multiplier = 1) {
         this.x = x;
         this.y = y;
-        this.width = 30;
-        this.height = 40;
+        this.width = 150;
+        this.height = 60;
         this.hp = 5;
         this.maxHp = 5;
-        this.contactDamage = Math.ceil(3 * multiplier);
     }
 
     takeDamage(damage = 1) {
+        console.log(`takeDamage called with: ${damage}, current HP: ${this.hp}`);
         this.hp -= damage;
+        console.log(`New HP: ${this.hp}`);
     }
 
+
     render(ctx) {
-        ctx.fillStyle = 'grey';
+        ctx.fillStyle = '#444444ff';
         ctx.fillRect(this.x, this.y, this.width, this.height);
+
+        // White armor for walls:
+        ctx.fillStyle = 'white';
+
+        // Center Piece (100×45)
+        ctx.fillRect(this.x + 25, this.y + 7.5, 100, 45);
+
+        // Corner pieces (38×15)
+        ctx.fillRect(this.x + 5, this.y + 5, 38, 15);        // Top-left
+        ctx.fillRect(this.x + 107, this.y + 5, 38, 15);      // Top-right
+        ctx.fillRect(this.x + 5, this.y + 40, 38, 15);       // Bottom-left
+        ctx.fillRect(this.x + 107, this.y + 40, 38, 15);     // Bottom-right
+
+        // Edge pieces
+        ctx.fillRect(this.x + 48, this.y + 5, 54, 8);        // Top edge
+        ctx.fillRect(this.x + 48, this.y + 47, 54, 8);       // Bottom edge
+        ctx.fillRect(this.x + 5, this.y + 25, 25, 10);       // Left edge
+        ctx.fillRect(this.x + 120, this.y + 25, 25, 10);     // Right edge
+
+        // Add circular core here
+        const coreX = this.x + this.width / 2;  // Center X
+        const coreY = this.y + this.height / 2; // Center Y
+        const coreRadius = 8; // Base size
+
+        ctx.fillStyle = 'red';
+        ctx.beginPath();
+        ctx.arc(coreX, coreY, coreRadius, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Solid Red glow (no pulse)
+        ctx.strokeStyle = 'red';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(coreX, coreY, coreRadius + 6, 0, Math.PI * 2);
+        ctx.stroke();
+
     }
 }
 
@@ -566,6 +604,7 @@ class Sentinel {
         this.walls = [];
         this.wallSpawnTimer = 0;
         this.wallSpawnCooldown = 5000; // Respawn walls every 5 seconds
+        this.spawnWalls();
 
         // Burst firing system
         this.burstTimer = 0;
@@ -608,6 +647,18 @@ class Sentinel {
                 this.burstCooldown = 5000; // 5 seconds between bursts
             }
         }
+
+        // Wall respawning logic
+        if (this.walls.length === 0) {
+            this.wallSpawnTimer += deltaTime;
+            if (this.wallSpawnTimer >= this.wallSpawnCooldown) {
+                this.spawnWalls();
+                this.wallSpawnTimer = 0;
+            }
+        } else {
+            this.wallSpawnTimer = 0; // Reset timer if walls exist
+        }
+
     }
 
     Shoot(bullets, player, damageMultiplier = 1) {
@@ -624,7 +675,7 @@ class Sentinel {
         const spreadRadians = spreadDegrees * (Math.PI / 180);
         const finalAngle = baseAngle + spreadRadians;
 
-        const speed = 0.25;
+        const speed = 0.50;
         const bulletVx = Math.cos(finalAngle) * speed;
         const bulletVy = Math.sin(finalAngle) * speed;
 
@@ -633,6 +684,23 @@ class Sentinel {
         bullet.vy = bulletVy;
         bullet.damage = Math.ceil((this.contactDamage || 1) * damageMultiplier);
         bullets.push(bullet);
+    }
+
+    spawnWalls() {
+        this.walls = []; // Clear existing walls
+
+        // Calculate starting position for first wall
+        const totalWallWidth = (5 * 150) + (4 * 10); // 4 walls + 3 gaps = 135
+        const startX = (gameWidth / 2) - (totalWallWidth / 2); // Center the wall formation
+        const wallY = this.y + this.height + 25; // Position in front of Sentinel
+
+
+        for (let i = 0; i < 5; i++) {
+            const wallX = startX + (i * (150 + 10)); // Each wall + gap
+            const wall = new Wall(wallX, wallY);
+            console.log(`Wall ${i} created with HP: ${wall.hp}, maxHP: ${wall.maxHp}`);
+            this.walls.push(new Wall(wallX, wallY));
+        }
     }
 
     takeDamage(damage = 1) {
@@ -646,18 +714,68 @@ class Sentinel {
         ctx.fillStyle = 'gray';
         ctx.fillRect(this.x, this.y, this.width, this.height);
 
+        // White armor:
+        ctx.fillStyle = 'white';
+        // Center Piece
+        ctx.fillRect(this.x + 10, this.y + 10, 40, 60);
+
+        // Corner pieces (15×15)
+        ctx.fillRect(this.x - 10, this.y - 5, 15, 15);        // Top-left
+        ctx.fillRect(this.x + 55, this.y - 5, 15, 15);       // Top-right
+        ctx.fillRect(this.x - 10, this.y + 70, 15, 15);       // Bottom-left
+        ctx.fillRect(this.x + 55, this.y + 70, 15, 15);      // Bottom-right
+
+        // Edge pieces
+        ctx.fillRect(this.x + 10, this.y + -5, 40, 10);       // Top edge (10×10)
+        ctx.fillRect(this.x + 10, this.y + 75, 40, 10);      // Bottom edge (10×10)
+        ctx.fillRect(this.x - 5, this.y + 15, 10, 50);       // Left edge (10×25)
+        ctx.fillRect(this.x + 55, this.y + 15, 10, 50);      // Right edge (10×25)
+
+        //Red Core:
+        let coreSize = 8;
+
+        const coreX = this.x + 30;  // Center X
+        const coreY = this.y + 40;  // Center Y
+
+        ctx.fillStyle = 'red';
+        ctx.beginPath();
+        ctx.moveTo(coreX, coreY - coreSize);           // Top point
+        ctx.lineTo(coreX - coreSize, coreY + coreSize); // Bottom left
+        ctx.lineTo(coreX + coreSize, coreY + coreSize); // Bottom right
+        ctx.closePath();
+        ctx.fill();
+
+
+        // Add pulsing
+        coreSize += Math.sin(Date.now() * 0.02) * 2;
+
+        // Pulsing Red glow
+        const glowIntensity = Math.sin(Date.now() * 0.015) * 0.4 + 0.6;
+        ctx.strokeStyle = `rgba(255, 0, 0, ${glowIntensity})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(coreX, coreY, coreSize + 6, 0, Math.PI * 2);
+        ctx.stroke();
+
         // Health bar
         ctx.fillStyle = 'darkred';
-        ctx.fillRect(this.x, this.y - 12, this.width, 8);
+        ctx.fillRect(this.x, this.y - 20, this.width, 8);
         ctx.fillStyle = 'lime';
-        ctx.fillRect(this.x, this.y - 12, (this.hp / this.maxHp) * this.width, 8);
+        ctx.fillRect(this.x, this.y - 20, (this.hp / this.maxHp) * this.width, 8);
 
         // Boss label
         ctx.fillStyle = 'white';
         ctx.font = 'bold 10px Arial';
         ctx.textAlign = 'center';
-        ctx.fillText('SENTINEL', centerX, this.y - 16);
+        ctx.fillText('SENTINEL', centerX, this.y - 24);
         ctx.textAlign = 'left';
+    }
+
+    // Render walls
+    renderWalls(ctx) {
+        this.walls.forEach(wall => {
+            wall.render(ctx);
+        });
     }
 }
 

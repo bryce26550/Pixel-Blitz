@@ -105,7 +105,7 @@ class Game {
         this.preBossMessage = '';
 
         this.score = 0;
-        this.lives = 3;
+        this.lives = 1;
         this.exp = 0;
         this.level = 1;
         this.expToNextLevel = 100;
@@ -518,7 +518,7 @@ class Game {
 
         console.log(`Random boss selected: ${bossClass}`);
 
-        const boss = new bossClass(this.width / 2 - 40, 50, this.globalEnemyMultiplier);
+        const boss = new bossClass(this.width / 2 - 30, 75, this.globalEnemyMultiplier);
 
         // Give boss access to game dimensions
         boss.gameWidth = this.width;
@@ -977,7 +977,38 @@ class Game {
             if (hit && hitCount >= bullet.pierce) {
                 this.bullets.splice(i, 1);
             }
+
+            // Check vs walls
+            for (let bossIndex = 0; bossIndex < this.bosses.length; bossIndex++) {
+                const boss = this.bosses[bossIndex];
+                if (boss.walls && hitCount < bullet.pierce) {
+                    for (let j = boss.walls.length - 1; j >= 0; j--) {
+                        if (this.checkCollision(bullet, boss.walls[j])) {
+                            const wall = boss.walls[j];
+
+                            console.log(`Wall hit! HP before: ${wall.hp}, Bullet damage: ${bullet.damage}`);
+                            wall.takeDamage(bullet.damage);
+                            this.createExplosion(bullet.x, bullet.y);
+
+                            if (wall.hp <= 0) {
+                                console.log('Wall destroyed!');
+                                this.createExplosion(wall.x, wall.y);
+                                boss.walls.splice(j, 1);
+                            }
+
+                            // Remove bullet immediately
+                            this.bullets.splice(i, 1);
+                            hit = true;
+                            return; // Exit the entire collision function
+                        }
+                    }
+                }
+            }
+
+
         }
+
+
 
         // Enemy bullets vs player
         for (let i = this.bullets.length - 1; i >= 0; i--) {
@@ -1010,6 +1041,44 @@ class Game {
                 }
             }
         }
+
+        // Player vs walls - solid collision (no damage)
+        for (let bossIndex = 0; bossIndex < this.bosses.length; bossIndex++) {
+            const boss = this.bosses[bossIndex];
+            if (boss.walls) {
+                for (let j = 0; j < boss.walls.length; j++) {
+                    const wall = boss.walls[j];
+
+                    if (this.checkCollision(this.player, wall)) {
+                        // Calculate overlap and push player out
+                        const overlapLeft = (this.player.x + this.player.width) - wall.x;
+                        const overlapRight = (wall.x + wall.width) - this.player.x;
+                        const overlapTop = (this.player.y + this.player.height) - wall.y;
+                        const overlapBottom = (wall.y + wall.height) - this.player.y;
+
+                        // Find the smallest overlap (shortest way to push out)
+                        const minOverlap = Math.min(overlapLeft, overlapRight, overlapTop, overlapBottom);
+
+                        if (minOverlap === overlapLeft) {
+                            this.player.x = wall.x - this.player.width;
+                        } else if (minOverlap === overlapRight) {
+                            this.player.x = wall.x + wall.width;
+                        } else if (minOverlap === overlapTop) {
+                            this.player.y = wall.y - this.player.height;
+                        } else {
+                            this.player.y = wall.y + wall.height;
+                        }
+
+                        // Keep player in bounds
+                        this.player.x = Math.max(0, Math.min(this.width - this.player.width, this.player.x));
+                        this.player.y = Math.max(0, Math.min(this.height - this.player.height, this.player.y));
+                    }
+                }
+            }
+        }
+
+
+
 
         // Update score display
         document.getElementById('scoreValue').textContent = this.score;
@@ -1160,12 +1229,27 @@ class Game {
 
         // Draw game objects
         this.player.render(this.ctx);
-        this.bullets.forEach(bullet => bullet.render(this.ctx));
+
+        // Render enemies first
         this.enemies.forEach(enemy => enemy.render(this.ctx));
         this.shooters.forEach(shooter => shooter.render(this.ctx));
         this.tanks.forEach(tank => tank.render(this.ctx));
         this.sprinters.forEach(sprinter => sprinter.render(this.ctx));
+
+        // Render bosses (without walls)
         this.bosses.forEach(boss => boss.render(this.ctx));
+
+        // Render boss walls (before bullets so bullets appear on top)
+        this.bosses.forEach(boss => {
+            if (boss.renderWalls) {  // Check if this boss type has walls
+                boss.renderWalls(this.ctx);
+            }
+        });
+
+        // Render bullets (after walls)
+        this.bullets.forEach(bullet => bullet.render(this.ctx));
+
+        // Render particles last
         this.particles.forEach(particle => particle.render(this.ctx));
 
         if (this.preBossActive) {
