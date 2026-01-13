@@ -105,7 +105,7 @@ class Game {
         this.preBossMessage = '';
 
         this.score = 0;
-        this.lives = 1;
+        this.lives = 5;
         this.exp = 0;
         this.level = 1;
         this.expToNextLevel = 100;
@@ -731,7 +731,7 @@ class Game {
             { name: "Ricochet", description: "Bullets Bounce (2 bounces)", effect: () => { this.player.ricochet = true; this.player.ricochetBounces = (this.player.ricochetBounces || 0) + 2; } },
             { name: "Multi Shot", description: "+1 Bullet Per Shot", effect: () => { this.player.multiShot += 1; } },
             { name: "Speed Boost", description: "Move Faster", effect: () => { this.player.speed += 0.1; } },
-            { name: "Life Steal", description: "Recover Shield on Enemy Kill", effect: () => { this.player.lifeSteal = true; } },
+            { name: "Syphone", description: "Recover Shield on Enemy Kill", effect: () => { this.player.lifeSteal = true; } },
             { name: "Shield Recharge", description: "Recover Lost Shield", effect: () => { this.player.health += 5; } }
         ];
 
@@ -796,25 +796,41 @@ class Game {
         // Update enemies
         this.enemies = this.enemies.filter(enemy => {
             enemy.update(deltaTime);
-            return enemy.y < this.height + 40;
+            if (enemy.y >= this.height + 30) {
+                this.player.takeDamageAmount(1)
+                this.createExplosion(this.player.x, this.player.y)
+            }
+            return enemy.y < this.height + 30 && enemy.hp > 0;
         });
 
         // Update shooters
         this.shooters = this.shooters.filter(shooter => {
             shooter.update(deltaTime, this.bullets, this.player, this.enemyDamageMultiplier);
-            return shooter.y < this.height + 40;
+            if (shooter.y >= this.height + 30) {
+                this.player.takeDamageAmount(1)
+                this.createExplosion(this.player.x, this.player.y)
+            }
+            return shooter.y < this.height + 30 && shooter.hp > 0;
         });
 
         // Update tanks
         this.tanks = this.tanks.filter(tank => {
             tank.update(deltaTime, this.bullets, this.player, this.enemyDamageMultiplier);
-            return tank.y < this.height + 50 && tank.hp > 0;
+            if (tank.y >= this.height + 40) {
+                this.player.takeDamageAmount(3)
+                this.createExplosion(this.player.x, this.player.y)
+            }
+            return tank.y < this.height + 40 && tank.hp > 0;
         });
 
         // Update sprinters
         this.sprinters = this.sprinters.filter(sprinter => {
             sprinter.update(deltaTime, this.player);
-            return sprinter.y < this.height + 40 && sprinter.hp > 0;
+            if (sprinter.y >= this.height + 25) {
+                this.player.takeDamageAmount(2)
+                this.createExplosion(this.player.x, this.player.y)
+            }
+            return sprinter.y < this.height + 25 && sprinter.hp > 0;
         });
 
         // Update bosses
@@ -825,7 +841,7 @@ class Game {
                 tanks: this.tanks,
                 sprinters: this.sprinters
             });
-            return boss.y < this.height + 60 && boss.hp > 0;
+            return boss.hp > 0;
         });
 
         // Update particles
@@ -1194,7 +1210,7 @@ class Game {
         this.bosses = [];
         this.particles = [];
         this.score = 0;
-        this.lives = 3;
+        this.lives = 5;
         this.exp = 0;
         this.level = 1;
         this.expToNextLevel = 100;
