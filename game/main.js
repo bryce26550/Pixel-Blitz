@@ -122,6 +122,19 @@ class Game {
         this.gamePausedReason = '';
         this.restartFromPause = false
 
+        // Music setup
+        this.backgroundMusic = document.getElementById('backgroundMusic');
+        this.bossMusic = document.getElementById('bossMusic');
+        this.currentMusic = null;
+        this.musicFading = false;
+
+        // Set volume levels
+        if (this.backgroundMusic) this.backgroundMusic.volume = 0.5;
+        if (this.bossMusic) this.bossMusic.volume = 0.5;
+
+        // Start background music
+        this.startBackgroundMusic()
+
         this.waveNumber = 1;
         this.waveProgress = 0;
         this.waveRequirement = 300;
@@ -154,8 +167,6 @@ class Game {
         this.gameLoop();
     }
 
-    // Add these methods to your Game class:
-
     showStartMenu() {
         this.hideAllMenus();
         document.getElementById('startMenu').classList.remove('hidden');
@@ -174,19 +185,79 @@ class Game {
     }
 
     hideAllMenus() {
-        console.log('hideAllMenus called'); // Debug line
-
         const menuIds = ['startMenu', 'pauseMenu', 'levelUpMenu'];
         menuIds.forEach(id => {
             const element = document.getElementById(id);
             if (element) {
-                console.log(`Hiding ${id}`); // Debug line
                 element.classList.add('hidden');
             } else {
                 console.error(`Element ${id} not found!`);
             }
         });
     }
+
+    startBackgroundMusic() {
+        if (this.backgroundMusic) {
+            this.currentMusic = this.backgroundMusic;
+            this.fadeIn(this.backgroundMusic);
+        }
+    }
+
+    switchToBackgroundMusic() {
+        if (this.currentMusic === this.backgroundMusic) return;
+
+        if (this.currentMusic) {
+            this.fadeOut(this.currentMusic);
+            setTimeout(() => {
+                this.currentMusic = this.backgroundMusic;
+                this.fadeIn(this.backgroundMusic);
+            }, 1000);
+        }
+    }
+
+    // Method to fade out audio
+    fadeOut(audioElement) {
+        if (!audioElement || audioElement.paused) return;
+
+        this.musicFading = true;
+        const fadeStep = 0.05; // How much to decrease each step
+        const fadeInterval = 50; // 50ms between steps (1000ms total / 20 steps)
+
+        const fade = setInterval(() => {
+            if (audioElement.volume > fadeStep) {
+                audioElement.volume -= fadeStep;
+            } else {
+                audioElement.volume = 0;
+                audioElement.pause();
+                clearInterval(fade);
+                this.musicFading = false;
+            }
+        }, fadeInterval);
+    }
+
+    // Method to fade in audio
+    fadeIn(audioElement) {
+        if (!audioElement) return;
+
+        audioElement.volume = 0;
+        audioElement.play();
+        this.musicFading = true;
+
+        const fadeStep = 0.025; // How much to increase each step  
+        const fadeInterval = 50;
+        const targetVolume = 0.5;
+
+        const fade = setInterval(() => {
+            if (audioElement.volume < targetVolume - fadeStep) {
+                audioElement.volume += fadeStep;
+            } else {
+                audioElement.volume = targetVolume;
+                clearInterval(fade);
+                this.musicFading = false;
+            }
+        }, fadeInterval);
+    }
+
 
 
     updatePlayerPreview() {
@@ -621,10 +692,29 @@ class Game {
         this.preBossTimer = 0;
         this.preBossMessage = `BOSS WAVE ${nextWaveNumber} INCOMING!`;
 
+        this.switchToBossMusic();
+
         this.clearAllEnemies();
 
         this.pendingWaveNumber = nextWaveNumber;
     }
+
+    switchToBossMusic() {
+        if (this.currentMusic === this.bossMusic) return; // Already playing boss music
+
+        if (this.currentMusic) {
+            this.fadeOut(this.currentMusic);
+            // Wait for fade out to complete, then start boss music
+            setTimeout(() => {
+                this.currentMusic = this.bossMusic;
+                this.fadeIn(this.bossMusic);
+            }, 1000); // 1 second delay to match fade out time
+        } else {
+            this.currentMusic = this.bossMusic;
+            this.fadeIn(this.bossMusic);
+        }
+    }
+
 
     clearAllEnemies() {
         // Create explosions for dramatic effect
@@ -726,21 +816,53 @@ class Game {
             { name: "Bonus Shield", description: "+5 Max Shield", effect: () => { this.player.maxHealth += 5; this.player.health += 5; } },
             { name: "Damage Boost", description: "+1 Bullet Damage", effect: () => { this.player.damage += 1; } },
             { name: "Fire Rate", description: "Faster Shooting", effect: () => { this.player.shootCooldownMax = Math.max(50, this.player.shootCooldownMax - 30); } },
-            { name: "Bullet Speed", description: "Faster Bullets", effect: () => { this.player.bulletSpeed += 0.2; } },
             { name: "Pierce Shot", description: "Bullets Go Through Enemies", effect: () => { this.player.pierce += 1; } },
             { name: "Ricochet", description: "Bullets Bounce (2 bounces)", effect: () => { this.player.ricochet = true; this.player.ricochetBounces = (this.player.ricochetBounces || 0) + 2; } },
             { name: "Multi Shot", description: "+1 Bullet Per Shot", effect: () => { this.player.multiShot += 1; } },
             { name: "Speed Boost", description: "Move Faster", effect: () => { this.player.speed += 0.1; } },
             { name: "Syphone", description: "Recover Shield on Enemy Kill", effect: () => { this.player.lifeSteal = true; } },
-            { name: "Shield Recharge", description: "Recover Lost Shield", effect: () => { this.player.health += 5; } }
+            { name: "Shield Recharge", description: "Recover Lost Shield", effect: () => { this.player.health += 5; } },
+            { name: "Lock In", description: "Your Bullets Lock in and Hunt Down Enemies", effect: () => { this.player.lockIn = true; this.player.lockInDistance = (this.player.lockInDistance || 0) + 50; } }
         ];
 
         // Randomly select 3 upgrades
         this.upgradeOptions = [];
         const availableUpgrades = [...allUpgrades];
+        const filteredUpgrades = availableUpgrades.filter(upgrade => {
+            if (this.player.lifeSteal == true) {
+                if (upgrade.name === "Syphone") {
+                    console.log("Syphon upgrade removed from avalible upgrades");
+                    return false
+                }
+            }
+
+            if (this.player.lockInDistance == 150) {
+                if (upgrade.name === "Lock In") {
+                    console.log("Lock In upgrade removed from avalible upgrades");
+                    return false
+                }
+            }
+
+            if (this.player.ricochetBounces == 6) {
+                if (upgrade.name === "Ricochet") {
+                    console.log("Ricochet upgrade removed from avalible upgrades");
+                    return false
+                }
+            }
+
+            if (this.player.pierce == 4) {
+                if (upgrade.name === "Pierce Shot") {
+                    console.log("Pierce Shot upgrade removed from avalible upgrades");
+                    return false
+                }
+            }
+
+            return true
+        });
+
         for (let i = 0; i < 3; i++) {
-            const randomIndex = Math.floor(Math.random() * availableUpgrades.length);
-            this.upgradeOptions.push(availableUpgrades.splice(randomIndex, 1)[0]);
+            const randomIndex = Math.floor(Math.random() * filteredUpgrades.length);
+            this.upgradeOptions.push(filteredUpgrades.splice(randomIndex, 1)[0]);
         }
     }
 
@@ -786,6 +908,104 @@ class Game {
 
                 if ((bullet.ricochetBounces || 0) <= 0) {
                     bullet.ricochet = false;
+                }
+            }
+
+            if (bullet.lockIn && bullet.isPlayer) {
+                // If bullet doesn't have a target yet, look for one
+                if (!bullet.target) {
+                    // Your loop through enemies to find one within 50 pixels
+                    for (let enemy of this.enemies) {
+                        const dx = enemy.x - bullet.x;
+                        const dy = enemy.y - bullet.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+
+                        if (distance <= this.player.lockInDistance) {
+                            bullet.target = enemy; // Remember this enemy
+                            break; // Stop looking for more targets
+                        }
+                    }
+                }
+
+                if (!bullet.target) {
+                    // Your loop through shooters to find one within 50 pixels
+                    for (let shooter of this.shooters) {
+                        const dx = shooter.x - bullet.x;
+                        const dy = shooter.y - bullet.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+
+                        if (distance <= this.player.lockInDistance) {
+                            bullet.target = shooter; // Remember this shooter
+                            break; // Stop looking for more targets
+                        }
+                    }
+                }
+
+                if (!bullet.target) {
+                    // Your loop through tanks to find one within 50 pixels
+                    for (let tank of this.tanks) {
+                        const dx = tank.x - bullet.x;
+                        const dy = tank.y - bullet.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+
+                        if (distance <= this.player.lockInDistance) {
+                            bullet.target = tank; // Remember this tank
+                            break; // Stop looking for more targets
+                        }
+                    }
+                }
+
+                if (!bullet.target) {
+                    // Your loop through sprinters to find one within 50 pixels
+                    for (let sprinter of this.sprinters) {
+                        const dx = sprinter.x - bullet.x;
+                        const dy = sprinter.y - bullet.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+
+                        if (distance <= this.player.lockInDistance) {
+                            bullet.target = sprinter; // Remember this sprinter
+                            break; // Stop looking for more targets
+                        }
+                    }
+                }
+
+                if (!bullet.target) {
+                    // Your loop through bosses to find one within 50 pixels
+                    for (let boss of this.bosses) {
+                        const dx = boss.x - bullet.x;
+                        const dy = boss.y - bullet.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+
+                        if (distance <= this.player.lockInDistance) {
+                            bullet.target = boss; // Remember this boss
+                            break; // Stop looking for more targets
+                        }
+                    }
+                }
+
+                // If bullet has a target, adjust trajectory toward it
+                if (bullet.target) {
+                    // Check if target still exists in the game
+                    const targetStillExists = this.enemies.includes(bullet.target) ||
+                        this.shooters.includes(bullet.target) ||
+                        this.tanks.includes(bullet.target) ||
+                        this.sprinters.includes(bullet.target) ||
+                        this.bosses.includes(bullet.target);
+
+                    if (!targetStillExists) {
+                        bullet.target = null; // Clear the dead target
+                        // Bullet will continue with its last velocity
+                    } else {
+                        // Normal homing logic
+                        const dx = bullet.target.x - bullet.x;
+                        const dy = bullet.target.y - bullet.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+
+                        const homingSpeed = 0.3;
+                        bullet.vx = (dx / distance) * homingSpeed;
+                        bullet.vy = (dy / distance) * homingSpeed;
+                    }
+
                 }
             }
 
@@ -968,6 +1188,7 @@ class Game {
             }
 
             // Check vs bosses
+            // Check vs bosses
             for (let j = this.bosses.length - 1; j >= 0 && hitCount < bullet.pierce; j--) {
                 if (this.checkCollision(bullet, this.bosses[j])) {
                     this.bosses[j].takeDamage(bullet.damage);
@@ -977,9 +1198,13 @@ class Game {
                         this.createExplosion(this.bosses[j].x, this.bosses[j].y);
                         this.bosses.splice(j, 1);
                         this.clearMinions();
+
+                        // Switch back to background music here!
+                        this.switchToBackgroundMusic();
+
                         this.score += 200;
                         this.scoreThisWave += 200;
-                        this.waveProgress += this.waveRequirement; // Complete the wave
+                        this.waveProgress += this.waveRequirement;
                         this.addExp(100);
                         if (this.player.lifeSteal && this.player.health < this.player.maxHealth) {
                             this.player.health += 3;
@@ -989,6 +1214,7 @@ class Game {
                     hitCount++;
                 }
             }
+
 
             if (hit && hitCount >= bullet.pierce) {
                 this.bullets.splice(i, 1);
