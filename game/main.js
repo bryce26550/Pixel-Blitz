@@ -127,10 +127,11 @@ class Game {
         this.bossMusic = document.getElementById('bossMusic');
         this.currentMusic = null;
         this.musicFading = false;
+        this.musicStarted = false;
 
         // Set volume levels
-        if (this.backgroundMusic) this.backgroundMusic.volume = 0.5;
-        if (this.bossMusic) this.bossMusic.volume = 0.5;
+        if (this.backgroundMusic) this.backgroundMusic.volume = 0.05;
+        if (this.bossMusic) this.bossMusic.volume = 0.05;
 
         // Start background music
         this.startBackgroundMusic()
@@ -202,6 +203,15 @@ class Game {
             this.fadeIn(this.backgroundMusic);
         }
     }
+
+    startMusicIfNeeded() {
+        if (!this.musicStarted && this.backgroundMusic) {
+            this.musicStarted = true;
+            this.currentMusic = this.backgroundMusic;
+            this.fadeIn(this.backgroundMusic);
+        }
+    }
+
 
     switchToBackgroundMusic() {
         if (this.currentMusic === this.backgroundMusic) return;
@@ -414,12 +424,14 @@ class Game {
         });
 
         this.canvas.addEventListener('mousemove', (e) => {
+            this.startMusicIfNeeded();
             const rect = this.canvas.getBoundingClientRect();
             this.mouseX = e.clientX - rect.left;
             this.mouseY = e.clientY - rect.top;
         });
 
         this.canvas.addEventListener('mousedown', (e) => {
+            this.startMusicIfNeeded();
             const rect = this.canvas.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;

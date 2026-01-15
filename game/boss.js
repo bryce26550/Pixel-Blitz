@@ -295,8 +295,6 @@ class Slasher {
             this.cooldownTimer -= deltaTime;
         }
 
-        console.log(`Dash state: ${this.dashState}, Cooldown: ${this.cooldownTimer}`);
-
         switch (this.dashState) {
             case 'idle':
                 this.handleIdleState(deltaTime, player);
@@ -333,21 +331,16 @@ class Slasher {
         const withinRange = distance <= this.dashRange;
         const cooldownReady = this.cooldownTimer <= 0;
 
-        console.log(`Distance: ${distance}, Within range: ${withinRange}, Cooldown ready: ${cooldownReady}`);
-
         if (withinRange && cooldownReady) {
-            console.log('Starting lock-on phase');
             this.dashState = 'locking';
             this.lockOnTime = 0; // FIX: Reset to 0, not 3000
         }
     }
 
     handleLockingState(deltaTime, player) {
-        console.log('Locking onto player...');
         this.lockOnTime += deltaTime;
 
         if (this.lockOnTime >= this.lockOnDuration) {
-            console.log('Lock-on complete, starting dash');
             this.dashState = 'dashing';
             this.calculateDashTrajectory(player);
         }
@@ -361,7 +354,6 @@ class Slasher {
         this.dashVelocityX = (dx / distance) * this.dashSpeed;
         this.dashVelocityY = (dy / distance) * this.dashSpeed;
 
-        console.log(`Dash velocity: (${this.dashVelocityX}, ${this.dashVelocityY})`);
     }
 
     handleDashingState(deltaTime) {
@@ -376,7 +368,6 @@ class Slasher {
             (this.y + this.height >= gameHeight);
 
         if (willHitWall) {
-            console.log('Hit wall! Ending dash');
             this.dashState = 'cooldown';
             this.cooldownTimer = this.dashCooldown; // Start 10-second cooldown
 
@@ -387,10 +378,8 @@ class Slasher {
     }
 
     handleCooldownState(deltaTime, player) {
-        console.log(`Cooling down... ${this.cooldownTimer}ms remaining`);
 
         if (this.cooldownTimer <= 0) {
-            console.log('Cooldown complete, returning to idle');
             this.dashState = 'idle';
             // Don't reset cooldownTimer here - it's already 0
         }
@@ -540,9 +529,7 @@ class Wall {
     }
 
     takeDamage(damage = 1) {
-        console.log(`takeDamage called with: ${damage}, current HP: ${this.hp}`);
         this.hp -= damage;
-        console.log(`New HP: ${this.hp}`);
     }
 
 
@@ -698,7 +685,6 @@ class Sentinel {
         for (let i = 0; i < 5; i++) {
             const wallX = startX + (i * (150 + 10)); // Each wall + gap
             const wall = new Wall(wallX, wallY);
-            console.log(`Wall ${i} created with HP: ${wall.hp}, maxHP: ${wall.maxHp}`);
             this.walls.push(new Wall(wallX, wallY));
         }
     }
@@ -785,18 +771,23 @@ class Railgun {
         // Position and size
         this.x = x;
         this.y = y;
-        this.width = 80;  // Adjust per boss
+        this.width = 60;  // Adjust per boss
         this.height = 60; // Adjust per boss
 
         // Health and damage
         this.hp = Math.ceil(50 * multiplier);
         this.maxHp = this.hp;
-        this.contactDamage = Math.ceil(baseDamage * multiplier);
+        this.contactDamage = Math.ceil(5 * multiplier);
 
         // Movement
-        this.speed = 0.05 * multiplier;
+        this.speed = 0.5 * multiplier;
 
-        // Boss-specific properties go here
+        // Dash attack properties
+        this.railgunState = 'cooldown';
+        this.lockOnTime = 0;
+        this.lockOnDuration = 1500;
+        this.shotCooldown = 3000;
+        this.eDash = false
     }
 
     update(deltaTime, bullets, player, damageMultiplier = 1) {

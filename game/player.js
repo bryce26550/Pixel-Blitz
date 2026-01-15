@@ -80,7 +80,6 @@ class Player {
             bullet.pierce = this.pierce;
             bullet.ricochet = this.ricochet;
             bullet.lockIn = this.lockIn;
-            console.log("Bullet created with lockIn:", bullet.lockIn);
             bullet.ricochetBounces = this.ricochet ? (this.ricochetBounces || 2) : 0;
             bullet.vx = Math.cos(angle) * speed;
             bullet.vy = Math.sin(angle) * speed;
