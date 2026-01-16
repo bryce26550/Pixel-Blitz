@@ -777,21 +777,131 @@ class Railgun {
         // Health and damage
         this.hp = Math.ceil(50 * multiplier);
         this.maxHp = this.hp;
-        this.contactDamage = Math.ceil(5 * multiplier);
+        this.contactDamage = Math.ceil(1 * multiplier);
 
         // Movement
         this.speed = 0.5 * multiplier;
 
-        // Dash attack properties
+        // Uniquie properties
         this.railgunState = 'cooldown';
+        this.previousState = 'cooldown';
         this.lockOnTime = 0;
         this.lockOnDuration = 1500;
-        this.shotCooldown = 3000;
+        this.cooldown = 3000;
+        this.cooldownTimer = 0;
         this.eDash = false
+
+        // Player movement
+        this.lastPlayerX = 0;
+        this.lastPlayerY = 0;
+
+        // Target position for dash
+        this.startX = 0;
+        this.startY = 0;
+        this.targetX = 0;
+        this.targetY = 0;
+        this.dashVelocityX = 0;
+        this.dashVelocityY = 0;
+
     }
 
     update(deltaTime, bullets, player, damageMultiplier = 1) {
-        // Boss-specific behavior goes here
+        // Emergency dash check
+        const dx = player.x - this.x;
+        const dy = player.y - this.y;
+        const distanceToPlayer = Math.sqrt(dx * dx + dy * dy);
+
+        if (distanceToPlayer < 100 && !this.eDash) {
+            this.previousState = this.railgunState;
+            this.startX = this.x
+            this.startY = this.y
+            this.eDash = true;
+
+            // Calculate direction TO player (normalized)
+            const direction = Math.sqrt(dx * dx + dy * dy) || 1;
+            const directionX = dx / direction;
+            const directionY = dy / direction;
+
+            // Calculate end position (300 pixels past player)
+            this.targetX = this.x + (directionX * 300);
+            this.targetY = this.y + (directionY * 300);
+
+            // Set dash velocity
+            this.dashVelocityX = directionX * 2;
+            this.dashVelocityY = directionY * 2;
+        }
+
+        if (this.eDash === true) {
+            this.x += this.dashVelocityX * deltaTime;
+            this.y += this.dashVelocityY * deltaTime;
+
+            // Calculate distance to target
+            const distanceToTarget = Math.sqrt(
+                (this.x - this.targetX) * (this.x - this.targetX) +
+                (this.y - this.targetY) * (this.y - this.targetY)
+            );
+
+            if (distanceToTarget < 10) {  // Within 10 pixels = "reached"
+                this.eDash = false;
+                // Immediate shot logic
+                this.railgunState = this.previousState;
+            }
+        } else {
+            switch (this.railgunState) {
+                case 'cooldown': this.handleCooldownState(deltaTime, player); break;
+                case 'locking': this.handleLockingState(deltaTime, player); break;
+                case 'shooting': this.handleShootingState(deltaTime, player); break;
+            };
+        }
+    }
+
+    handleCooldownState(deltaTime, player) {
+        this.cooldownTimer += deltaTime;
+
+        //miror player movement
+        const playerMovedX = player.x - this.lastPlayerX
+        const playerMovedY = player.y - this.lastPlayerY
+
+        if (playerMovedX !== 0 || playerMovedY !== 0) {
+
+            this.x -= playerMovedX
+            this.y -= playerMovedY
+
+        }
+
+        // Update for next frame:
+        this.lastPlayerX = player.x;
+        this.lastPlayerY = player.y;
+
+        if (this.cooldownTimer >= this.cooldown) {
+
+            this.cooldownTimer = 0
+            this.railgunState = 'locking';
+        }
+    }
+
+
+    handleLockingState(deltaTime, player) {
+        this.lockOnTime += deltaTime;
+
+        if (this.lockOnTime >= this.lockOnDuration) {
+            this.lockOnTime = 0
+            this.railgunState = 'shooting'
+            this.calculateShotTrajectory(player)
+        }
+    }
+
+    calculateShotTrajectory(player) {
+
+    }
+
+    handleShootingState(deltaTime, player) {
+        shoot()
+        this.railgunState = 'cooldown'
+    }
+
+    shoot() {
+
     }
 
     takeDamage(damage = 1) {
