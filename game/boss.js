@@ -295,8 +295,6 @@ class Slasher {
             this.cooldownTimer -= deltaTime;
         }
 
-        console.log(`Dash state: ${this.dashState}, Cooldown: ${this.cooldownTimer}`);
-
         switch (this.dashState) {
             case 'idle':
                 this.handleIdleState(deltaTime, player);
@@ -333,21 +331,16 @@ class Slasher {
         const withinRange = distance <= this.dashRange;
         const cooldownReady = this.cooldownTimer <= 0;
 
-        console.log(`Distance: ${distance}, Within range: ${withinRange}, Cooldown ready: ${cooldownReady}`);
-
         if (withinRange && cooldownReady) {
-            console.log('Starting lock-on phase');
             this.dashState = 'locking';
             this.lockOnTime = 0; // FIX: Reset to 0, not 3000
         }
     }
 
     handleLockingState(deltaTime, player) {
-        console.log('Locking onto player...');
         this.lockOnTime += deltaTime;
 
         if (this.lockOnTime >= this.lockOnDuration) {
-            console.log('Lock-on complete, starting dash');
             this.dashState = 'dashing';
             this.calculateDashTrajectory(player);
         }
@@ -361,7 +354,6 @@ class Slasher {
         this.dashVelocityX = (dx / distance) * this.dashSpeed;
         this.dashVelocityY = (dy / distance) * this.dashSpeed;
 
-        console.log(`Dash velocity: (${this.dashVelocityX}, ${this.dashVelocityY})`);
     }
 
     handleDashingState(deltaTime) {
@@ -376,7 +368,6 @@ class Slasher {
             (this.y + this.height >= gameHeight);
 
         if (willHitWall) {
-            console.log('Hit wall! Ending dash');
             this.dashState = 'cooldown';
             this.cooldownTimer = this.dashCooldown; // Start 10-second cooldown
 
@@ -387,10 +378,8 @@ class Slasher {
     }
 
     handleCooldownState(deltaTime, player) {
-        console.log(`Cooling down... ${this.cooldownTimer}ms remaining`);
 
         if (this.cooldownTimer <= 0) {
-            console.log('Cooldown complete, returning to idle');
             this.dashState = 'idle';
             // Don't reset cooldownTimer here - it's already 0
         }
@@ -529,24 +518,175 @@ class Slasher {
 
 }
 
+class Wall {
+    constructor(x, y, multiplier = 1) {
+        this.x = x;
+        this.y = y;
+        this.width = 150;
+        this.height = 60;
+        this.hp = 5;
+        this.maxHp = 5;
+    }
+
+    takeDamage(damage = 1) {
+        this.hp -= damage;
+    }
+
+
+    render(ctx) {
+        ctx.fillStyle = '#444444ff';
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+
+        // White armor for walls:
+        ctx.fillStyle = 'white';
+
+        // Center Piece (100×45)
+        ctx.fillRect(this.x + 25, this.y + 7.5, 100, 45);
+
+        // Corner pieces (38×15)
+        ctx.fillRect(this.x + 5, this.y + 5, 38, 15);        // Top-left
+        ctx.fillRect(this.x + 107, this.y + 5, 38, 15);      // Top-right
+        ctx.fillRect(this.x + 5, this.y + 40, 38, 15);       // Bottom-left
+        ctx.fillRect(this.x + 107, this.y + 40, 38, 15);     // Bottom-right
+
+        // Edge pieces
+        ctx.fillRect(this.x + 48, this.y + 5, 54, 8);        // Top edge
+        ctx.fillRect(this.x + 48, this.y + 47, 54, 8);       // Bottom edge
+        ctx.fillRect(this.x + 5, this.y + 25, 25, 10);       // Left edge
+        ctx.fillRect(this.x + 120, this.y + 25, 25, 10);     // Right edge
+
+        // Add circular core here
+        const coreX = this.x + this.width / 2;  // Center X
+        const coreY = this.y + this.height / 2; // Center Y
+        const coreRadius = 8; // Base size
+
+        ctx.fillStyle = 'red';
+        ctx.beginPath();
+        ctx.arc(coreX, coreY, coreRadius, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Solid Red glow (no pulse)
+        ctx.strokeStyle = 'red';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(coreX, coreY, coreRadius + 6, 0, Math.PI * 2);
+        ctx.stroke();
+
+    }
+}
+
 class Sentinel {
     constructor(x, y, multiplier = 1) {
         // Position and size
         this.x = x;
         this.y = y;
-        this.width = 80;  // Adjust per boss
-        this.height = 60; // Adjust per boss
+        this.width = 60;
+        this.height = 80;
 
         // Health and damage
         this.hp = Math.ceil(125 * multiplier);
         this.maxHp = this.hp;
-        this.contactDamage = Math.ceil(baseDamage * multiplier);
 
-        // Boss-specific properties go here
+        // Wall system
+        this.walls = [];
+        this.wallSpawnTimer = 0;
+        this.wallSpawnCooldown = 5000; // Respawn walls every 5 seconds
+        this.spawnWalls();
+
+        // Burst firing system
+        this.burstTimer = 0;
+        this.burstDuration = 3000; // 3 seconds of firing
+        this.burstCooldown = 3500; // 5 seconds between bursts
+        this.isBursting = false;
+        this.burstShotInterval = 50; // Fire every 150ms during burst
     }
 
     update(deltaTime, bullets, player, damageMultiplier = 1) {
-        // Boss-specific behavior goes here
+        const dx = (player.x + player.width / 2) - (this.x + this.width / 2);
+        const dy = (player.y + player.height / 2) - (this.y + this.height / 2);
+
+        // Handle cooldown when NOT bursting
+        if (!this.isBursting) {
+            this.burstCooldown -= deltaTime;
+            if (this.burstCooldown <= 0) {
+                // Start burst
+                this.isBursting = true;
+                this.burstTimer = 0;
+                this.burstDuration = 3000; // Reset duration for next burst
+            }
+        } else {
+            // Handle active burst
+            this.burstDuration -= deltaTime; // Decrease every frame
+            this.burstTimer += deltaTime;    // Increase every frame
+
+            // Check if time to shoot
+            if (this.burstTimer >= this.burstShotInterval) {
+                // Shoot and reset burstTimer
+                this.Shoot(bullets, player, damageMultiplier);
+                this.burstTimer = 0;
+            }
+
+            // Check if burst is over
+            if (this.burstDuration <= 0) {
+                // End burst
+                this.isBursting = false;
+                this.burstTimer = 0;
+                this.burstCooldown = 5000; // 5 seconds between bursts
+            }
+        }
+
+        // Wall respawning logic
+        if (this.walls.length === 0) {
+            this.wallSpawnTimer += deltaTime;
+            if (this.wallSpawnTimer >= this.wallSpawnCooldown) {
+                this.spawnWalls();
+                this.wallSpawnTimer = 0;
+            }
+        } else {
+            this.wallSpawnTimer = 0; // Reset timer if walls exist
+        }
+
+    }
+
+    Shoot(bullets, player, damageMultiplier = 1) {
+        const dx = (player.x + player.width / 2) - (this.x + this.width / 2);
+        const dy = (player.y + player.height / 2) - (this.y + this.height / 2);
+
+        // Base angle to player
+        const baseAngle = Math.atan2(dy, dx);
+
+        // Random spread in degrees (-15 to +15)
+        const spreadDegrees = (Math.random() - 0.5) * 30;
+
+        // Convert to radians and add to base angle
+        const spreadRadians = spreadDegrees * (Math.PI / 180);
+        const finalAngle = baseAngle + spreadRadians;
+
+        const speed = 0.50;
+        const bulletVx = Math.cos(finalAngle) * speed;
+        const bulletVy = Math.sin(finalAngle) * speed;
+
+        const bullet = new Bullet(this.x + this.width / 2, this.y + this.height / 2, false);
+        bullet.vx = bulletVx;
+        bullet.vy = bulletVy;
+        bullet.damage = Math.ceil((this.contactDamage || 1) * damageMultiplier);
+        bullets.push(bullet);
+    }
+
+    spawnWalls() {
+        this.walls = []; // Clear existing walls
+
+        // Calculate starting position for first wall
+        const totalWallWidth = (5 * 150) + (4 * 10); // 4 walls + 3 gaps = 135
+        const startX = (gameWidth / 2) - (totalWallWidth / 2); // Center the wall formation
+        const wallY = this.y + this.height + 25; // Position in front of Sentinel
+
+
+        for (let i = 0; i < 5; i++) {
+            const wallX = startX + (i * (150 + 10)); // Each wall + gap
+            const wall = new Wall(wallX, wallY);
+            this.walls.push(new Wall(wallX, wallY));
+        }
     }
 
     takeDamage(damage = 1) {
@@ -554,31 +694,214 @@ class Sentinel {
     }
 
     render(ctx) {
+        const centerX = this.x + this.width / 2;
+
         // Boss appearance
+        ctx.fillStyle = 'gray';
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+
+        // White armor:
+        ctx.fillStyle = 'white';
+        // Center Piece
+        ctx.fillRect(this.x + 10, this.y + 10, 40, 60);
+
+        // Corner pieces (15×15)
+        ctx.fillRect(this.x - 10, this.y - 5, 15, 15);        // Top-left
+        ctx.fillRect(this.x + 55, this.y - 5, 15, 15);       // Top-right
+        ctx.fillRect(this.x - 10, this.y + 70, 15, 15);       // Bottom-left
+        ctx.fillRect(this.x + 55, this.y + 70, 15, 15);      // Bottom-right
+
+        // Edge pieces
+        ctx.fillRect(this.x + 10, this.y + -5, 40, 10);       // Top edge (10×10)
+        ctx.fillRect(this.x + 10, this.y + 75, 40, 10);      // Bottom edge (10×10)
+        ctx.fillRect(this.x - 5, this.y + 15, 10, 50);       // Left edge (10×25)
+        ctx.fillRect(this.x + 55, this.y + 15, 10, 50);      // Right edge (10×25)
+
+        //Red Core:
+        let coreSize = 8;
+
+        const coreX = this.x + 30;  // Center X
+        const coreY = this.y + 40;  // Center Y
+
+        ctx.fillStyle = 'red';
+        ctx.beginPath();
+        ctx.moveTo(coreX, coreY - coreSize);           // Top point
+        ctx.lineTo(coreX - coreSize, coreY + coreSize); // Bottom left
+        ctx.lineTo(coreX + coreSize, coreY + coreSize); // Bottom right
+        ctx.closePath();
+        ctx.fill();
+
+
+        // Add pulsing
+        coreSize += Math.sin(Date.now() * 0.02) * 2;
+
+        // Pulsing Red glow
+        const glowIntensity = Math.sin(Date.now() * 0.015) * 0.4 + 0.6;
+        ctx.strokeStyle = `rgba(255, 0, 0, ${glowIntensity})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(coreX, coreY, coreSize + 6, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Health bar
+        ctx.fillStyle = 'darkred';
+        ctx.fillRect(this.x, this.y - 20, this.width, 8);
+        ctx.fillStyle = 'lime';
+        ctx.fillRect(this.x, this.y - 20, (this.hp / this.maxHp) * this.width, 8);
+
+        // Boss label
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 10px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('SENTINEL', centerX, this.y - 24);
+        ctx.textAlign = 'left';
+    }
+
+    // Render walls
+    renderWalls(ctx) {
+        this.walls.forEach(wall => {
+            wall.render(ctx);
+        });
     }
 }
+
 
 class Railgun {
     constructor(x, y, multiplier = 1) {
         // Position and size
         this.x = x;
         this.y = y;
-        this.width = 80;  // Adjust per boss
+        this.width = 60;  // Adjust per boss
         this.height = 60; // Adjust per boss
 
         // Health and damage
         this.hp = Math.ceil(50 * multiplier);
         this.maxHp = this.hp;
-        this.contactDamage = Math.ceil(baseDamage * multiplier);
+        this.contactDamage = Math.ceil(1 * multiplier);
 
         // Movement
-        this.speed = 0.05 * multiplier;
+        this.speed = 0.5 * multiplier;
 
-        // Boss-specific properties go here
+        // Uniquie properties
+        this.railgunState = 'cooldown';
+        this.previousState = 'cooldown';
+        this.lockOnTime = 0;
+        this.lockOnDuration = 1500;
+        this.cooldown = 3000;
+        this.cooldownTimer = 0;
+        this.eDash = false
+
+        // Player movement
+        this.lastPlayerX = 0;
+        this.lastPlayerY = 0;
+
+        // Target position for dash
+        this.startX = 0;
+        this.startY = 0;
+        this.targetX = 0;
+        this.targetY = 0;
+        this.dashVelocityX = 0;
+        this.dashVelocityY = 0;
+
     }
 
     update(deltaTime, bullets, player, damageMultiplier = 1) {
-        // Boss-specific behavior goes here
+        // Emergency dash check
+        const dx = player.x - this.x;
+        const dy = player.y - this.y;
+        const distanceToPlayer = Math.sqrt(dx * dx + dy * dy);
+
+        if (distanceToPlayer < 100 && !this.eDash) {
+            this.previousState = this.railgunState;
+            this.startX = this.x
+            this.startY = this.y
+            this.eDash = true;
+
+            // Calculate direction TO player (normalized)
+            const direction = Math.sqrt(dx * dx + dy * dy) || 1;
+            const directionX = dx / direction;
+            const directionY = dy / direction;
+
+            // Calculate end position (300 pixels past player)
+            this.targetX = this.x + (directionX * 300);
+            this.targetY = this.y + (directionY * 300);
+
+            // Set dash velocity
+            this.dashVelocityX = directionX * 2;
+            this.dashVelocityY = directionY * 2;
+        }
+
+        if (this.eDash === true) {
+            this.x += this.dashVelocityX * deltaTime;
+            this.y += this.dashVelocityY * deltaTime;
+
+            // Calculate distance to target
+            const distanceToTarget = Math.sqrt(
+                (this.x - this.targetX) * (this.x - this.targetX) +
+                (this.y - this.targetY) * (this.y - this.targetY)
+            );
+
+            if (distanceToTarget < 10) {  // Within 10 pixels = "reached"
+                this.eDash = false;
+                // Immediate shot logic
+                this.railgunState = this.previousState;
+            }
+        } else {
+            switch (this.railgunState) {
+                case 'cooldown': this.handleCooldownState(deltaTime, player); break;
+                case 'locking': this.handleLockingState(deltaTime, player); break;
+                case 'shooting': this.handleShootingState(deltaTime, player); break;
+            };
+        }
+    }
+
+    handleCooldownState(deltaTime, player) {
+        this.cooldownTimer += deltaTime;
+
+        //miror player movement
+        const playerMovedX = player.x - this.lastPlayerX
+        const playerMovedY = player.y - this.lastPlayerY
+
+        if (playerMovedX !== 0 || playerMovedY !== 0) {
+
+            this.x -= playerMovedX
+            this.y -= playerMovedY
+
+        }
+
+        // Update for next frame:
+        this.lastPlayerX = player.x;
+        this.lastPlayerY = player.y;
+
+        if (this.cooldownTimer >= this.cooldown) {
+
+            this.cooldownTimer = 0
+            this.railgunState = 'locking';
+        }
+    }
+
+
+    handleLockingState(deltaTime, player) {
+        this.lockOnTime += deltaTime;
+
+        if (this.lockOnTime >= this.lockOnDuration) {
+            this.lockOnTime = 0
+            this.railgunState = 'shooting'
+            this.calculateShotTrajectory(player)
+        }
+    }
+
+    calculateShotTrajectory(player) {
+
+    }
+
+    handleShootingState(deltaTime, player) {
+        shoot()
+        this.railgunState = 'cooldown'
+    }
+
+    shoot() {
+
     }
 
     takeDamage(damage = 1) {

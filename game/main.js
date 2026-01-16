@@ -95,7 +95,7 @@ class Game {
         this.tanks = [];
         this.sprinters = [];
         this.bosses = [];
-        this.availableBosses = [Blaster, Slasher, Overlord]; // Add Blaster, Slasher, Sentinel, Railgun, Overlord for all bosses to be available
+        this.availableBosses = [Railgun]; // Add Blaster, Slasher, Sentinel, Railgun, Overlord for all bosses to be available
         this.particles = [];
 
         // Pre-boss wave system
@@ -105,7 +105,7 @@ class Game {
         this.preBossMessage = '';
 
         this.score = 0;
-        this.lives = 3;
+        this.lives = 5;
         this.exp = 0;
         this.level = 1;
         this.expToNextLevel = 100;
@@ -121,6 +121,20 @@ class Game {
         this.gamePaused = false;
         this.gamePausedReason = '';
         this.restartFromPause = false
+
+        // Music setup
+        this.backgroundMusic = document.getElementById('backgroundMusic');
+        this.bossMusic = document.getElementById('bossMusic');
+        this.currentMusic = null;
+        this.musicFading = false;
+        this.musicStarted = false;
+
+        // Set volume levels
+        if (this.backgroundMusic) this.backgroundMusic.volume = 0.05;
+        if (this.bossMusic) this.bossMusic.volume = 0.05;
+
+        // Start background music
+        this.startBackgroundMusic()
 
         this.waveNumber = 1;
         this.waveProgress = 0;
@@ -154,8 +168,6 @@ class Game {
         this.gameLoop();
     }
 
-    // Add these methods to your Game class:
-
     showStartMenu() {
         this.hideAllMenus();
         document.getElementById('startMenu').classList.remove('hidden');
@@ -174,19 +186,88 @@ class Game {
     }
 
     hideAllMenus() {
-        console.log('hideAllMenus called'); // Debug line
-
         const menuIds = ['startMenu', 'pauseMenu', 'levelUpMenu'];
         menuIds.forEach(id => {
             const element = document.getElementById(id);
             if (element) {
-                console.log(`Hiding ${id}`); // Debug line
                 element.classList.add('hidden');
             } else {
                 console.error(`Element ${id} not found!`);
             }
         });
     }
+
+    startBackgroundMusic() {
+        if (this.backgroundMusic) {
+            this.currentMusic = this.backgroundMusic;
+            this.fadeIn(this.backgroundMusic);
+        }
+    }
+
+    startMusicIfNeeded() {
+        if (!this.musicStarted && this.backgroundMusic) {
+            this.musicStarted = true;
+            this.currentMusic = this.backgroundMusic;
+            this.fadeIn(this.backgroundMusic);
+        }
+    }
+
+
+    switchToBackgroundMusic() {
+        if (this.currentMusic === this.backgroundMusic) return;
+
+        if (this.currentMusic) {
+            this.fadeOut(this.currentMusic);
+            setTimeout(() => {
+                this.currentMusic = this.backgroundMusic;
+                this.fadeIn(this.backgroundMusic);
+            }, 1000);
+        }
+    }
+
+    // Method to fade out audio
+    fadeOut(audioElement) {
+        if (!audioElement || audioElement.paused) return;
+
+        this.musicFading = true;
+        const fadeStep = 0.05; // How much to decrease each step
+        const fadeInterval = 50; // 50ms between steps (1000ms total / 20 steps)
+
+        const fade = setInterval(() => {
+            if (audioElement.volume > fadeStep) {
+                audioElement.volume -= fadeStep;
+            } else {
+                audioElement.volume = 0;
+                audioElement.pause();
+                clearInterval(fade);
+                this.musicFading = false;
+            }
+        }, fadeInterval);
+    }
+
+    // Method to fade in audio
+    fadeIn(audioElement) {
+        if (!audioElement) return;
+
+        audioElement.volume = 0;
+        audioElement.play();
+        this.musicFading = true;
+
+        const fadeStep = 0.025; // How much to increase each step  
+        const fadeInterval = 50;
+        const targetVolume = 0.5;
+
+        const fade = setInterval(() => {
+            if (audioElement.volume < targetVolume - fadeStep) {
+                audioElement.volume += fadeStep;
+            } else {
+                audioElement.volume = targetVolume;
+                clearInterval(fade);
+                this.musicFading = false;
+            }
+        }, fadeInterval);
+    }
+
 
 
     updatePlayerPreview() {
@@ -343,12 +424,14 @@ class Game {
         });
 
         this.canvas.addEventListener('mousemove', (e) => {
+            this.startMusicIfNeeded();
             const rect = this.canvas.getBoundingClientRect();
             this.mouseX = e.clientX - rect.left;
             this.mouseY = e.clientY - rect.top;
         });
 
         this.canvas.addEventListener('mousedown', (e) => {
+            this.startMusicIfNeeded();
             const rect = this.canvas.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
@@ -518,7 +601,7 @@ class Game {
 
         console.log(`Random boss selected: ${bossClass}`);
 
-        const boss = new bossClass(this.width / 2 - 40, 50, this.globalEnemyMultiplier);
+        const boss = new bossClass(this.width / 2 - 30, 75, this.globalEnemyMultiplier);
 
         // Give boss access to game dimensions
         boss.gameWidth = this.width;
@@ -621,10 +704,29 @@ class Game {
         this.preBossTimer = 0;
         this.preBossMessage = `BOSS WAVE ${nextWaveNumber} INCOMING!`;
 
+        this.switchToBossMusic();
+
         this.clearAllEnemies();
 
         this.pendingWaveNumber = nextWaveNumber;
     }
+
+    switchToBossMusic() {
+        if (this.currentMusic === this.bossMusic) return; // Already playing boss music
+
+        if (this.currentMusic) {
+            this.fadeOut(this.currentMusic);
+            // Wait for fade out to complete, then start boss music
+            setTimeout(() => {
+                this.currentMusic = this.bossMusic;
+                this.fadeIn(this.bossMusic);
+            }, 1000); // 1 second delay to match fade out time
+        } else {
+            this.currentMusic = this.bossMusic;
+            this.fadeIn(this.bossMusic);
+        }
+    }
+
 
     clearAllEnemies() {
         // Create explosions for dramatic effect
@@ -726,21 +828,53 @@ class Game {
             { name: "Bonus Shield", description: "+5 Max Shield", effect: () => { this.player.maxHealth += 5; this.player.health += 5; } },
             { name: "Damage Boost", description: "+1 Bullet Damage", effect: () => { this.player.damage += 1; } },
             { name: "Fire Rate", description: "Faster Shooting", effect: () => { this.player.shootCooldownMax = Math.max(50, this.player.shootCooldownMax - 30); } },
-            { name: "Bullet Speed", description: "Faster Bullets", effect: () => { this.player.bulletSpeed += 0.2; } },
             { name: "Pierce Shot", description: "Bullets Go Through Enemies", effect: () => { this.player.pierce += 1; } },
             { name: "Ricochet", description: "Bullets Bounce (2 bounces)", effect: () => { this.player.ricochet = true; this.player.ricochetBounces = (this.player.ricochetBounces || 0) + 2; } },
             { name: "Multi Shot", description: "+1 Bullet Per Shot", effect: () => { this.player.multiShot += 1; } },
             { name: "Speed Boost", description: "Move Faster", effect: () => { this.player.speed += 0.1; } },
-            { name: "Life Steal", description: "Recover Shield on Enemy Kill", effect: () => { this.player.lifeSteal = true; } },
-            { name: "Shield Recharge", description: "Recover Lost Shield", effect: () => { this.player.health += 5; } }
+            { name: "Syphone", description: "Recover Shield on Enemy Kill", effect: () => { this.player.lifeSteal = true; } },
+            { name: "Shield Recharge", description: "Recover Lost Shield", effect: () => { this.player.health += 5; } },
+            { name: "Lock In", description: "Your Bullets Lock in and Hunt Down Enemies", effect: () => { this.player.lockIn = true; this.player.lockInDistance = (this.player.lockInDistance || 0) + 50; } }
         ];
 
         // Randomly select 3 upgrades
         this.upgradeOptions = [];
         const availableUpgrades = [...allUpgrades];
+        const filteredUpgrades = availableUpgrades.filter(upgrade => {
+            if (this.player.lifeSteal == true) {
+                if (upgrade.name === "Syphone") {
+                    console.log("Syphon upgrade removed from avalible upgrades");
+                    return false
+                }
+            }
+
+            if (this.player.lockInDistance == 150) {
+                if (upgrade.name === "Lock In") {
+                    console.log("Lock In upgrade removed from avalible upgrades");
+                    return false
+                }
+            }
+
+            if (this.player.ricochetBounces == 6) {
+                if (upgrade.name === "Ricochet") {
+                    console.log("Ricochet upgrade removed from avalible upgrades");
+                    return false
+                }
+            }
+
+            if (this.player.pierce == 4) {
+                if (upgrade.name === "Pierce Shot") {
+                    console.log("Pierce Shot upgrade removed from avalible upgrades");
+                    return false
+                }
+            }
+
+            return true
+        });
+
         for (let i = 0; i < 3; i++) {
-            const randomIndex = Math.floor(Math.random() * availableUpgrades.length);
-            this.upgradeOptions.push(availableUpgrades.splice(randomIndex, 1)[0]);
+            const randomIndex = Math.floor(Math.random() * filteredUpgrades.length);
+            this.upgradeOptions.push(filteredUpgrades.splice(randomIndex, 1)[0]);
         }
     }
 
@@ -789,6 +923,104 @@ class Game {
                 }
             }
 
+            if (bullet.lockIn && bullet.isPlayer) {
+                // If bullet doesn't have a target yet, look for one
+                if (!bullet.target) {
+                    // Your loop through enemies to find one within 50 pixels
+                    for (let enemy of this.enemies) {
+                        const dx = enemy.x - bullet.x;
+                        const dy = enemy.y - bullet.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+
+                        if (distance <= this.player.lockInDistance) {
+                            bullet.target = enemy; // Remember this enemy
+                            break; // Stop looking for more targets
+                        }
+                    }
+                }
+
+                if (!bullet.target) {
+                    // Your loop through shooters to find one within 50 pixels
+                    for (let shooter of this.shooters) {
+                        const dx = shooter.x - bullet.x;
+                        const dy = shooter.y - bullet.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+
+                        if (distance <= this.player.lockInDistance) {
+                            bullet.target = shooter; // Remember this shooter
+                            break; // Stop looking for more targets
+                        }
+                    }
+                }
+
+                if (!bullet.target) {
+                    // Your loop through tanks to find one within 50 pixels
+                    for (let tank of this.tanks) {
+                        const dx = tank.x - bullet.x;
+                        const dy = tank.y - bullet.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+
+                        if (distance <= this.player.lockInDistance) {
+                            bullet.target = tank; // Remember this tank
+                            break; // Stop looking for more targets
+                        }
+                    }
+                }
+
+                if (!bullet.target) {
+                    // Your loop through sprinters to find one within 50 pixels
+                    for (let sprinter of this.sprinters) {
+                        const dx = sprinter.x - bullet.x;
+                        const dy = sprinter.y - bullet.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+
+                        if (distance <= this.player.lockInDistance) {
+                            bullet.target = sprinter; // Remember this sprinter
+                            break; // Stop looking for more targets
+                        }
+                    }
+                }
+
+                if (!bullet.target) {
+                    // Your loop through bosses to find one within 50 pixels
+                    for (let boss of this.bosses) {
+                        const dx = boss.x - bullet.x;
+                        const dy = boss.y - bullet.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+
+                        if (distance <= this.player.lockInDistance) {
+                            bullet.target = boss; // Remember this boss
+                            break; // Stop looking for more targets
+                        }
+                    }
+                }
+
+                // If bullet has a target, adjust trajectory toward it
+                if (bullet.target) {
+                    // Check if target still exists in the game
+                    const targetStillExists = this.enemies.includes(bullet.target) ||
+                        this.shooters.includes(bullet.target) ||
+                        this.tanks.includes(bullet.target) ||
+                        this.sprinters.includes(bullet.target) ||
+                        this.bosses.includes(bullet.target);
+
+                    if (!targetStillExists) {
+                        bullet.target = null; // Clear the dead target
+                        // Bullet will continue with its last velocity
+                    } else {
+                        // Normal homing logic
+                        const dx = bullet.target.x - bullet.x;
+                        const dy = bullet.target.y - bullet.y;
+                        const distance = Math.sqrt(dx * dx + dy * dy);
+
+                        const homingSpeed = 0.3;
+                        bullet.vx = (dx / distance) * homingSpeed;
+                        bullet.vy = (dy / distance) * homingSpeed;
+                    }
+
+                }
+            }
+
             return bullet.y > -50 && bullet.y < this.height + 50 &&
                 bullet.x > -50 && bullet.x < this.width + 50;
         });
@@ -796,25 +1028,41 @@ class Game {
         // Update enemies
         this.enemies = this.enemies.filter(enemy => {
             enemy.update(deltaTime);
-            return enemy.y < this.height + 40;
+            if (enemy.y >= this.height + 30) {
+                this.player.takeDamageAmount(1)
+                this.createExplosion(this.player.x, this.player.y)
+            }
+            return enemy.y < this.height + 30 && enemy.hp > 0;
         });
 
         // Update shooters
         this.shooters = this.shooters.filter(shooter => {
             shooter.update(deltaTime, this.bullets, this.player, this.enemyDamageMultiplier);
-            return shooter.y < this.height + 40;
+            if (shooter.y >= this.height + 30) {
+                this.player.takeDamageAmount(1)
+                this.createExplosion(this.player.x, this.player.y)
+            }
+            return shooter.y < this.height + 30 && shooter.hp > 0;
         });
 
         // Update tanks
         this.tanks = this.tanks.filter(tank => {
             tank.update(deltaTime, this.bullets, this.player, this.enemyDamageMultiplier);
-            return tank.y < this.height + 50 && tank.hp > 0;
+            if (tank.y >= this.height + 40) {
+                this.player.takeDamageAmount(3)
+                this.createExplosion(this.player.x, this.player.y)
+            }
+            return tank.y < this.height + 40 && tank.hp > 0;
         });
 
         // Update sprinters
         this.sprinters = this.sprinters.filter(sprinter => {
             sprinter.update(deltaTime, this.player);
-            return sprinter.y < this.height + 40 && sprinter.hp > 0;
+            if (sprinter.y >= this.height + 25) {
+                this.player.takeDamageAmount(2)
+                this.createExplosion(this.player.x, this.player.y)
+            }
+            return sprinter.y < this.height + 25 && sprinter.hp > 0;
         });
 
         // Update bosses
@@ -825,7 +1073,7 @@ class Game {
                 tanks: this.tanks,
                 sprinters: this.sprinters
             });
-            return boss.y < this.height + 60 && boss.hp > 0;
+            return boss.hp > 0;
         });
 
         // Update particles
@@ -952,6 +1200,7 @@ class Game {
             }
 
             // Check vs bosses
+            // Check vs bosses
             for (let j = this.bosses.length - 1; j >= 0 && hitCount < bullet.pierce; j--) {
                 if (this.checkCollision(bullet, this.bosses[j])) {
                     this.bosses[j].takeDamage(bullet.damage);
@@ -961,9 +1210,13 @@ class Game {
                         this.createExplosion(this.bosses[j].x, this.bosses[j].y);
                         this.bosses.splice(j, 1);
                         this.clearMinions();
+
+                        // Switch back to background music here!
+                        this.switchToBackgroundMusic();
+
                         this.score += 200;
                         this.scoreThisWave += 200;
-                        this.waveProgress += this.waveRequirement; // Complete the wave
+                        this.waveProgress += this.waveRequirement;
                         this.addExp(100);
                         if (this.player.lifeSteal && this.player.health < this.player.maxHealth) {
                             this.player.health += 3;
@@ -974,10 +1227,42 @@ class Game {
                 }
             }
 
+
             if (hit && hitCount >= bullet.pierce) {
                 this.bullets.splice(i, 1);
             }
+
+            // Check vs walls
+            for (let bossIndex = 0; bossIndex < this.bosses.length; bossIndex++) {
+                const boss = this.bosses[bossIndex];
+                if (boss.walls && hitCount < bullet.pierce) {
+                    for (let j = boss.walls.length - 1; j >= 0; j--) {
+                        if (this.checkCollision(bullet, boss.walls[j])) {
+                            const wall = boss.walls[j];
+
+                            console.log(`Wall hit! HP before: ${wall.hp}, Bullet damage: ${bullet.damage}`);
+                            wall.takeDamage(bullet.damage);
+                            this.createExplosion(bullet.x, bullet.y);
+
+                            if (wall.hp <= 0) {
+                                console.log('Wall destroyed!');
+                                this.createExplosion(wall.x, wall.y);
+                                boss.walls.splice(j, 1);
+                            }
+
+                            // Remove bullet immediately
+                            this.bullets.splice(i, 1);
+                            hit = true;
+                            return; // Exit the entire collision function
+                        }
+                    }
+                }
+            }
+
+
         }
+
+
 
         // Enemy bullets vs player
         for (let i = this.bullets.length - 1; i >= 0; i--) {
@@ -1010,6 +1295,44 @@ class Game {
                 }
             }
         }
+
+        // Player vs walls - solid collision (no damage)
+        for (let bossIndex = 0; bossIndex < this.bosses.length; bossIndex++) {
+            const boss = this.bosses[bossIndex];
+            if (boss.walls) {
+                for (let j = 0; j < boss.walls.length; j++) {
+                    const wall = boss.walls[j];
+
+                    if (this.checkCollision(this.player, wall)) {
+                        // Calculate overlap and push player out
+                        const overlapLeft = (this.player.x + this.player.width) - wall.x;
+                        const overlapRight = (wall.x + wall.width) - this.player.x;
+                        const overlapTop = (this.player.y + this.player.height) - wall.y;
+                        const overlapBottom = (wall.y + wall.height) - this.player.y;
+
+                        // Find the smallest overlap (shortest way to push out)
+                        const minOverlap = Math.min(overlapLeft, overlapRight, overlapTop, overlapBottom);
+
+                        if (minOverlap === overlapLeft) {
+                            this.player.x = wall.x - this.player.width;
+                        } else if (minOverlap === overlapRight) {
+                            this.player.x = wall.x + wall.width;
+                        } else if (minOverlap === overlapTop) {
+                            this.player.y = wall.y - this.player.height;
+                        } else {
+                            this.player.y = wall.y + wall.height;
+                        }
+
+                        // Keep player in bounds
+                        this.player.x = Math.max(0, Math.min(this.width - this.player.width, this.player.x));
+                        this.player.y = Math.max(0, Math.min(this.height - this.player.height, this.player.y));
+                    }
+                }
+            }
+        }
+
+
+
 
         // Update score display
         document.getElementById('scoreValue').textContent = this.score;
@@ -1125,7 +1448,7 @@ class Game {
         this.bosses = [];
         this.particles = [];
         this.score = 0;
-        this.lives = 3;
+        this.lives = 5;
         this.exp = 0;
         this.level = 1;
         this.expToNextLevel = 100;
@@ -1160,12 +1483,27 @@ class Game {
 
         // Draw game objects
         this.player.render(this.ctx);
-        this.bullets.forEach(bullet => bullet.render(this.ctx));
+
+        // Render enemies first
         this.enemies.forEach(enemy => enemy.render(this.ctx));
         this.shooters.forEach(shooter => shooter.render(this.ctx));
         this.tanks.forEach(tank => tank.render(this.ctx));
         this.sprinters.forEach(sprinter => sprinter.render(this.ctx));
+
+        // Render bosses (without walls)
         this.bosses.forEach(boss => boss.render(this.ctx));
+
+        // Render boss walls (before bullets so bullets appear on top)
+        this.bosses.forEach(boss => {
+            if (boss.renderWalls) {  // Check if this boss type has walls
+                boss.renderWalls(this.ctx);
+            }
+        });
+
+        // Render bullets (after walls)
+        this.bullets.forEach(bullet => bullet.render(this.ctx));
+
+        // Render particles last
         this.particles.forEach(particle => particle.render(this.ctx));
 
         if (this.preBossActive) {

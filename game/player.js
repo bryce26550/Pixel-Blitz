@@ -17,8 +17,9 @@ class Player {
         this.ricochet = false;
         this.ricochetBounces = 0;
         this.multiShot = 1;
-        this.shieldDuration = 1000;
         this.lifeSteal = false;
+        this.lockIn = false
+        this.lockInDistance = 0
         
         // Customization
         this.colorChoices = ['#00ff00', '#00aaffff', '#8c00ffff', '#00ffffff', '#ff6600', '#ff0000ff'];
@@ -78,6 +79,7 @@ class Player {
             bullet.damage = this.damage;
             bullet.pierce = this.pierce;
             bullet.ricochet = this.ricochet;
+            bullet.lockIn = this.lockIn;
             bullet.ricochetBounces = this.ricochet ? (this.ricochetBounces || 2) : 0;
             bullet.vx = Math.cos(angle) * speed;
             bullet.vy = Math.sin(angle) * speed;
@@ -143,7 +145,7 @@ class Bullet {
     constructor(x, y, isPlayer = false) {
         this.x = x;
         this.y = y;
-        this.width = 4;
+        this.width = 5;
         this.height = 10;
         this.speed = isPlayer ? -0.5 : 0.3;
         this.vx = 0;
