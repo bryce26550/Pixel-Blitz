@@ -147,11 +147,11 @@ app.post('/payIn', isAuthenticated, (req, res) => {
 
         const data = {
             from: userId,
-            to: 1, // Replace with 17 when running official server
+            to: 17, // Replace with 17 when running official server
             amount: currentPrice,
             pin: parseInt(pin),
             reason: 'Game Entry Fee',
-            // pool: 'true' uncomment for official server use
+            pool: 'true' //uncomment for official server use
         };
 
         console.log('Processing payment:', data);
@@ -353,7 +353,7 @@ app.post('/endGame', isAuthenticated, (req, res) => {
 // Secure payout processing
 async function processPayout(userId, amount) {
     const data = {
-        from: 1, // Your game account
+        from: 27, // Your game account
         to: userId,
         amount: amount, // Server-calculated amount only
         pin: 2018, // Your server PIN
