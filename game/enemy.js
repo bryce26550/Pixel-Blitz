@@ -35,6 +35,7 @@ class Shooter {
         this.shootCooldown = Math.max(800, 1500 / multiplier);
         this.lastShootTime = 0;
         this.contactDamage = Math.ceil(2 * multiplier);
+        this.game = game
     }
 
     update(deltaTime, bullets, player, damageMultiplier = 1) {
@@ -61,6 +62,7 @@ class Shooter {
         bullet.vy = bulletVy;
         bullet.damage = Math.ceil((this.contactDamage || 1) * damageMultiplier);
         bullets.push(bullet);
+        this.game.playSound('enemyShot')
     }
 
     render(ctx) {
@@ -87,6 +89,7 @@ class Tank {
         this.shootCooldown = Math.max(1000, 2000 / multiplier);
         this.lastShootTime = 0;
         this.movementPattern = Math.random() > 0.5 ? 1 : -1;
+        this.game = game
     }
 
     update(deltaTime, bullets, player, damageMultiplier = 1) {
@@ -120,6 +123,7 @@ class Tank {
             bullet.vy = bulletVy;
             bullet.damage = Math.ceil((this.contactDamage || 1) * damageMultiplier);
             bullets.push(bullet);
+            this.game.playSound('enemyShot')
         }
     }
 

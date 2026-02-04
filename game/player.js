@@ -20,7 +20,7 @@ class Player {
         this.lifeSteal = false;
         this.lockIn = false
         this.lockInDistance = 0
-        
+
         // Customization
         this.colorChoices = ['#00ff00', '#00aaffff', '#8c00ffff', '#00ffffff', '#ff6600', '#ff0000ff'];
         this.colorIndex = 0;
@@ -84,6 +84,8 @@ class Player {
             bullet.vx = Math.cos(angle) * speed;
             bullet.vy = Math.sin(angle) * speed;
             bullets.push(bullet);
+            this.game.playSound('playerShot');
+
         }
     }
 
@@ -104,7 +106,7 @@ class Player {
         if (!this.invulnerable) {
             this.health = Math.max(0, this.health - amount);
             this.invulnerable = true;
-            this.invulnerabilityTimer = this.shieldDuration;
+            this.invulnerabilityTimer = 100;
         }
     }
 

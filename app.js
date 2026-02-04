@@ -49,9 +49,6 @@ const THIS_URL = process.env.THIS_URL || `http://localhost:${PORT}`;
 const API_KEY = process.env.API_KEY || 'your_api_key';
 const gameSessions = new Map(); // sessionId -> gameData
 
-//global variables
-
-
 //middleware
 app.set('view engine', 'ejs');
 app.use(express.static('public'));
@@ -297,38 +294,6 @@ app.post('/admin/updatePrice', isAuthenticated, isAdmin, (req, res) => {
 // Handle wave completion with anti-cheat validation
 function handleWaveComplete(gameSession, data, res) {
     const { waveNumber, timeTaken, scoreGained } = data;
-
-    // Validate wave progression
-    if (waveNumber !== gameSession.currentWave) {
-        console.log(`Cheating detected: Wave skip attempt by user ${gameSession.userId}`);
-        endGameSession(gameSession.sessionId, 'CHEATING_DETECTED');
-        return res.json({ ok: false, error: 'Invalid wave progression' });
-    }
-
-    // Validate timing (prevent impossible speeds)
-    const minWaveTime = 0; // 0 milliseconds minimum per wave
-    const maxWaveTime = 180000000000; // 30 minutes maximum per wave
-
-    if (timeTaken < minWaveTime || timeTaken > maxWaveTime) {
-        console.log(`Suspicious timing: ${timeTaken}ms for wave ${waveNumber}`);
-        endGameSession(gameSession.sessionId, 'SUSPICIOUS_TIMING');
-        return res.json({ ok: false, error: 'Invalid timing' });
-    }
-
-    // Validate score gains (prevent impossible scores)
-    const maxScorePerWave = 1000; // Adjust based on your game
-    if (scoreGained > maxScorePerWave) {
-        console.log(`Impossible score gain: ${scoreGained} in wave ${waveNumber}`);
-        endGameSession(gameSession.sessionId, 'IMPOSSIBLE_SCORE');
-        return res.json({ ok: false, error: 'Invalid score' });
-    }
-
-    // Validate wave progression
-    if (waveNumber !== gameSession.currentWave) {
-        console.log(`Cheating detected: Wave skip attempt by user ${gameSession.userId}`);
-        endGameSession(gameSession.sessionId, 'CHEATING_DETECTED');
-        return res.json({ ok: false, error: 'Invalid wave progression' });
-    }
 
     // Update server-side game state
     gameSession.currentWave = waveNumber + 1;
