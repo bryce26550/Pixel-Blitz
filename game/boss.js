@@ -9,6 +9,7 @@ class Blaster {
         this.height = 40;
         this.hp = Math.ceil(85 * multiplier);
         this.maxHp = Math.ceil(this.hp * multiplier);
+        this.game = game
 
         // Movement
         this.x = x;
@@ -81,6 +82,8 @@ class Blaster {
             bullet.vy = bulletVy;
             bullet.damage = Math.ceil((this.contactDamage || 1) * damageMultiplier);
             bullets.push(bullet);
+            this.game.playSound('enemyShot')
+
         }
     }
 
@@ -95,6 +98,8 @@ class Blaster {
             bullet.vy = Math.sin(angle) * speed;
             bullet.damage = Math.ceil((this.contactDamage || 1) * damageMultiplier);
             bullets.push(bullet);
+            this.game.playSound('enemyShot')
+
         }
     }
 
@@ -238,6 +243,7 @@ class Slasher {
         this.height = 60;
         this.currentAngle = Math.PI / 2;
         this.rotationSpeed = 0.002; // Radians per millisecond
+        this.game = game
 
         // Health and damage
         this.hp = Math.ceil(65 * multiplier);
@@ -343,6 +349,8 @@ class Slasher {
         if (this.lockOnTime >= this.lockOnDuration) {
             this.dashState = 'dashing';
             this.calculateDashTrajectory(player);
+            // Play dash sound effect
+            this.game.playSound('slasherDash');
         }
     }
 
@@ -360,6 +368,7 @@ class Slasher {
         // Move the boss
         this.x += this.dashVelocityX * deltaTime;
         this.y += this.dashVelocityY * deltaTime;
+        this.game.playSound('slasherDash')
 
         // Check if boss will hit wall BEFORE clamping position
         const willHitWall = (this.x <= 0) ||
@@ -582,6 +591,7 @@ class Sentinel {
         this.y = y;
         this.width = 60;
         this.height = 80;
+        this.game = game
 
         // Health and damage
         this.hp = Math.ceil(125 * multiplier);
@@ -671,6 +681,7 @@ class Sentinel {
         bullet.vy = bulletVy;
         bullet.damage = Math.ceil((this.contactDamage || 1) * damageMultiplier);
         bullets.push(bullet);
+        this.game.playSound('enemyShot')
     }
 
     spawnWalls() {
@@ -765,19 +776,112 @@ class Sentinel {
     }
 }
 
+class LineShot {
+    constructor(startX, startY, targetX, targetY, width, damage) {
+        this.startX = startX;
+        this.startY = startY;
+        this.targetX = targetX;
+        this.targetY = targetY;
+        this.width = width;
+        this.damage = damage;
+        this.game = game
+
+        // Calculate direction and extend 1000 pixels
+        const dx = targetX - startX;
+        const dy = targetY - startY;
+        const distance = Math.sqrt(dx * dx + dy * dy) || 1;
+
+        this.endX = startX + (dx / distance) * 1000;
+        this.endY = startY + (dy / distance) * 1000;
+
+        // State management
+        this.isPreview = true;
+        this.isActive = true;
+        this.frameCount = 0;
+        this.maxFrames = damage === 0 ? Infinity : 4;
+    }
+
+    fire() {
+        this.isPreview = false
+        this.isActive = true
+    }
+
+    update(deltaTime) {
+        if (!this.isPreview) {
+            this.frameCount++;
+
+            if (this.frameCount >= this.maxFrames) {
+                this.isActive = false
+            }
+        }
+    }
+
+    render(ctx) {
+        if (this.isPreview) {
+            ctx.strokeStyle = `rgba(255, 0, 0, 0.25)`;
+            ctx.lineWidth = this.width;
+            ctx.lineCap = 'round'; // Smooth line ends
+
+            ctx.beginPath();
+            ctx.moveTo(this.startX, this.startY);
+            ctx.lineTo(this.endX, this.endY);
+            ctx.stroke();
+        }
+        else {
+            // Save canvas state for transformations
+            ctx.save();
+
+            // Calculate line angle and length
+            const dx = this.endX - this.startX;
+            const dy = this.endY - this.startY;
+            const angle = Math.atan2(dy, dx);
+            const length = Math.sqrt(dx * dx + dy * dy);
+
+            // Move to start point and rotate
+            ctx.translate(this.startX, this.startY);
+            ctx.rotate(angle);
+
+            // Draw gradient layers (from outside to inside)
+            const layers = [
+                { width: this.width, color: 'rgba(139, 0, 0, 0.8)' },    // Dark red edges
+                { width: this.width * 0.7, color: 'rgba(255, 0, 0, 0.9)' }, // Bright red
+                { width: this.width * 0.4, color: 'rgba(255, 255, 0, 0.95)' }, // Yellow
+                { width: this.width * 0.2, color: 'rgba(255, 255, 255, 1)' }   // White center
+            ];
+
+            layers.forEach(layer => {
+                ctx.strokeStyle = layer.color;
+                ctx.lineWidth = layer.width;
+                ctx.lineCap = 'round';
+
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(length, 0);
+                ctx.stroke();
+            });
+
+            // Restore canvas state
+            ctx.restore();
+        }
+    }
+}
+
+
 
 class Railgun {
     constructor(x, y, multiplier = 1) {
         // Position and size
         this.x = x;
         this.y = y;
-        this.width = 60;  // Adjust per boss
-        this.height = 60; // Adjust per boss
+        this.width = 50;  // Adjust per boss
+        this.height = 50; // Adjust per boss
+        this.game = game
 
         // Health and damage
         this.hp = Math.ceil(50 * multiplier);
         this.maxHp = this.hp;
         this.contactDamage = Math.ceil(1 * multiplier);
+        this.shotDamage = Math.ceil(6 * multiplier)
 
         // Movement
         this.speed = 0.5 * multiplier;
@@ -786,8 +890,10 @@ class Railgun {
         this.railgunState = 'cooldown';
         this.previousState = 'cooldown';
         this.lockOnTime = 0;
-        this.lockOnDuration = 1500;
-        this.cooldown = 3000;
+        this.lockOnDuration = 2000;
+        this.delayTime = 0;
+        this.delayDuration = 250;
+        this.cooldown = 4000;
         this.cooldownTimer = 0;
         this.eDash = false
 
@@ -803,13 +909,33 @@ class Railgun {
         this.dashVelocityX = 0;
         this.dashVelocityY = 0;
 
+        // Barrel tracking properties
+        this.barrelAngle = 0;
+        this.barrelLength = 45;
+        this.barrelWidth = 15;
+        this.barrelTipX = 0;
+        this.barrelTipY = 0;
+
     }
 
-    update(deltaTime, bullets, player, damageMultiplier = 1) {
+    update(deltaTime, lineshots, player, damageMultiplier = 1) {
         // Emergency dash check
         const dx = player.x - this.x;
         const dy = player.y - this.y;
         const distanceToPlayer = Math.sqrt(dx * dx + dy * dy);
+
+        // Update barrel tracking (always track player unless dashing)
+        if (!this.eDash) {
+            const dx = (player.x + player.width / 2) - (this.x + this.width / 2);
+            const dy = (player.y + player.height / 2) - (this.y + this.height / 2);
+            this.barrelAngle = Math.atan2(dy, dx);
+        }
+
+        // Calculate barrel tip position
+        const centerX = this.x + this.width / 2;
+        const centerY = this.y + this.height / 2;
+        this.barrelTipX = centerX + Math.cos(this.barrelAngle) * this.barrelLength;
+        this.barrelTipY = centerY + Math.sin(this.barrelAngle) * this.barrelLength;
 
         if (distanceToPlayer < 100 && !this.eDash) {
             this.previousState = this.railgunState;
@@ -832,25 +958,13 @@ class Railgun {
         }
 
         if (this.eDash === true) {
-            this.x += this.dashVelocityX * deltaTime;
-            this.y += this.dashVelocityY * deltaTime;
-
-            // Calculate distance to target
-            const distanceToTarget = Math.sqrt(
-                (this.x - this.targetX) * (this.x - this.targetX) +
-                (this.y - this.targetY) * (this.y - this.targetY)
-            );
-
-            if (distanceToTarget < 10) {  // Within 10 pixels = "reached"
-                this.eDash = false;
-                // Immediate shot logic
-                this.railgunState = this.previousState;
-            }
+            this.handleDashingState(deltaTime, lineshots, damageMultiplier); // ← Use the state handler instead of inline logic
         } else {
             switch (this.railgunState) {
                 case 'cooldown': this.handleCooldownState(deltaTime, player); break;
-                case 'locking': this.handleLockingState(deltaTime, player); break;
-                case 'shooting': this.handleShootingState(deltaTime, player); break;
+                case 'locking': this.handleLockingState(deltaTime, lineshots, player); break;
+                case 'delay': this.handleDelayState(deltaTime); break;
+                case 'shooting': this.handleShootingState(deltaTime, lineshots, player, damageMultiplier); break;
             };
         }
     }
@@ -869,6 +983,10 @@ class Railgun {
 
         }
 
+        // CRITICAL: Keep boss within screen bounds
+        this.x = Math.max(0, Math.min(this.x, gameWidth - this.width));
+        this.y = Math.max(0, Math.min(this.y, gameHeight - this.height));
+
         // Update for next frame:
         this.lastPlayerX = player.x;
         this.lastPlayerY = player.y;
@@ -881,26 +999,136 @@ class Railgun {
     }
 
 
-    handleLockingState(deltaTime, player) {
+    handleLockingState(deltaTime, lineshots, player) {
         this.lockOnTime += deltaTime;
+        this.lastPlayerX = player.x;
+        this.lastPlayerY = player.y;
+
+        // Create preview shot once
+        if (!this.previewShot) {
+            console.log('Creating preview shot...');
+            this.previewShot = new LineShot(
+                this.barrelTipX, // ← Fire from barrel tip
+                this.barrelTipY, // ← Fire from barrel tip
+                player.x + player.width / 2,
+                player.y + player.height / 2,
+                75,
+                0
+            );
+            this.previewShot.isActive = true;
+            console.log('Preview shot created, isActive:', this.previewShot.isActive);
+            console.log('Preview shot isPreview:', this.previewShot.isPreview);
+            lineshots.push(this.previewShot);
+            console.log('Pushed to lineshots array. Array length:', lineshots.length);
+        } else {
+            // Update preview shot to continuously track player
+            this.previewShot.startX = this.barrelTipX; // ← Update start position
+            this.previewShot.startY = this.barrelTipY; // ← Update start position
+            this.previewShot.targetX = player.x + player.width / 2;
+            this.previewShot.targetY = player.y + player.height / 2;
+
+            // Recalculate end position for the new target
+            const dx = this.previewShot.targetX - this.previewShot.startX;
+            const dy = this.previewShot.targetY - this.previewShot.startY;
+            const distance = Math.sqrt(dx * dx + dy * dy) || 1;
+            this.previewShot.endX = this.previewShot.startX + (dx / distance) * 1000;
+            this.previewShot.endY = this.previewShot.startY + (dy / distance) * 1000;
+        }
 
         if (this.lockOnTime >= this.lockOnDuration) {
-            this.lockOnTime = 0
-            this.railgunState = 'shooting'
-            this.calculateShotTrajectory(player)
+            // Remove preview
+            console.log('Lock-on complete, removing preview');
+            if (this.previewShot) {
+                this.previewShot.isActive = false;
+                this.previewShot = null;
+            }
+
+            this.lockOnTime = 0;
+            this.delayTime = 0;
+            this.railgunState = 'delay';
+            this.calculateShotTrajectory(player);
         }
     }
 
-    calculateShotTrajectory(player) {
+    handleDelayState(deltaTime) {
+        this.delayTime += deltaTime;
 
+        if (this.delayTime >= this.delayDuration) {
+            this.railgunState = 'shooting';
+        }
     }
 
-    handleShootingState(deltaTime, player) {
-        shoot()
+
+    handleDashingState(deltaTime, lineshots, damageMultiplier) {
+        // Move the boss
+        this.x += this.dashVelocityX * deltaTime;
+        this.y += this.dashVelocityY * deltaTime;
+
+        // Check if boss will hit wall BEFORE clamping position
+        const willHitWall = (this.x <= 0) ||
+            (this.x + this.width >= gameWidth) ||
+            (this.y <= 0) ||
+            (this.y + this.height >= gameHeight);
+
+        if (willHitWall) {
+            this.eDash = false; // ← End the dash immediately
+            this.eShot(lineshots, damageMultiplier);  // ← This is correct
+            this.railgunState = this.previousState;
+
+            // Clamp position after detecting collision
+            this.x = Math.max(0, Math.min(this.x, gameWidth - this.width));
+            this.y = Math.max(0, Math.min(this.y, gameHeight - this.height));
+        }
+    }
+
+
+    calculateShotTrajectory(player) {
+        const dx = (player.x + player.width / 2) - (this.x + this.width / 2);
+        const dy = (player.y + player.height / 2) - (this.y + this.height / 2);
+        const distance = Math.sqrt(dx * dx + dy * dy) || 1;
+
+        this.shotTargetX = (player.x + player.width / 2)
+        this.shotTargetY = (player.y + player.height / 2)
+    }
+
+    handleShootingState(deltaTime, lineshots, player, damageMultiplier) {
+        this.lastPlayerX = player.x;
+        this.lastPlayerY = player.y;
+
+
+        this.shoot(lineshots, damageMultiplier)
         this.railgunState = 'cooldown'
     }
 
-    shoot() {
+    shoot(lineshots, damageMultiplier) {
+        const lineShot = new LineShot(
+            this.barrelTipX, // ← Fire from barrel tip
+            this.barrelTipY, // ← Fire from barrel tip
+            this.shotTargetX,
+            this.shotTargetY,
+            75,
+            this.shotDamage * damageMultiplier,
+        );
+
+        lineShot.fire();
+
+        lineshots.push(lineShot)
+        this.game.playSound('railgunShot')
+    }
+
+    eShot(lineshots, damageMultiplier) {
+        const lineShot = new LineShot(
+            this.barrelTipX, // ← Fire from barrel tip
+            this.barrelTipY, // ← Fire from barrel tip
+            this.startX,
+            this.startY,
+            50,
+            this.shotDamage * damageMultiplier,
+        );
+
+        lineShot.fire();
+        lineshots.push(lineShot)
+        this.game.playSound('railgunShot')
 
     }
 
@@ -909,8 +1137,181 @@ class Railgun {
     }
 
     render(ctx) {
-        // Boss appearance
+        const centerX = this.x + this.width / 2;
+        const centerY = this.y + this.height / 2;
+        const healthPercent = this.hp / this.maxHp;
+
+        // Get current state for visual effects
+        const isLocking = this.railgunState === 'locking';
+        const isCharging = this.railgunState === 'delay';
+        const isCooldown = this.railgunState === 'cooldown';
+        const isDashing = this.eDash;
+
+        // LAYER 1: Dash Trail Effect (render first, behind everything)
+        if (isDashing) {
+            this.renderDashTrail(ctx);
+        }
+
+        // LAYER 2: Main Hull - Sleek angular design
+        ctx.fillStyle = '#2C3E50'; // Dark blue-gray base
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+
+        // Angular side panels
+        ctx.fillStyle = '#34495E';
+        ctx.fillRect(this.x + 5, this.y + 5, this.width - 10, this.height - 10);
+
+        // LAYER 3: Targeting Systems
+        // Side sensor arrays
+        ctx.fillStyle = '#E74C3C'; // Red sensors
+        ctx.fillRect(this.x + 2, centerY - 3, 6, 6);
+        ctx.fillRect(this.x + this.width - 8, centerY - 3, 6, 6);
+
+        // Central targeting module
+        ctx.fillStyle = '#3498DB';
+        ctx.fillRect(centerX - 8, centerY - 8, 16, 16);
+
+        // LAYER 4: Targeting reticle (changes based on state)
+        let reticleColor = '#2ECC71'; // Green when idle
+        let reticleSize = 6;
+
+        if (isDashing) {
+            reticleColor = '#E67E22'; // Orange when dashing
+            reticleSize = 10;
+        } else if (isLocking) {
+            reticleColor = '#F39C12'; // Yellow when locking
+            reticleSize = 8 + Math.sin(Date.now() * 0.03) * 2;
+        } else if (isCharging) {
+            reticleColor = '#E74C3C'; // Red when charging
+            reticleSize = 10;
+        }
+
+        ctx.fillStyle = reticleColor;
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, reticleSize, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Reticle crosshairs
+        ctx.strokeStyle = reticleColor;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(centerX - reticleSize - 4, centerY);
+        ctx.lineTo(centerX - reticleSize - 2, centerY);
+        ctx.moveTo(centerX + reticleSize + 2, centerY);
+        ctx.lineTo(centerX + reticleSize + 4, centerY);
+        ctx.moveTo(centerX, centerY - reticleSize - 4);
+        ctx.lineTo(centerX, centerY - reticleSize - 2);
+        ctx.moveTo(centerX, centerY + reticleSize + 2);
+        ctx.lineTo(centerX, centerY + reticleSize + 4);
+        ctx.stroke();
+
+        // LAYER 5: Energy Systems
+        // Power conduits
+        ctx.fillStyle = '#9B59B6';
+        ctx.fillRect(this.x + 8, this.y + 8, 4, this.height - 16);
+        ctx.fillRect(this.x + this.width - 12, this.y + 8, 4, this.height - 16);
+
+        // Energy core (pulses during different states)
+        let coreColor = '#3498DB';
+        let coreIntensity = 0.7;
+
+        if (isCharging) {
+            coreIntensity = Math.sin(Date.now() * 0.05) * 0.3 + 0.7;
+            coreColor = '#E74C3C';
+        } else if (isLocking) {
+            coreIntensity = Math.sin(Date.now() * 0.03) * 0.2 + 0.8;
+            coreColor = '#F39C12';
+        }
+
+        ctx.fillStyle = coreColor;
+        ctx.globalAlpha = coreIntensity;
+        ctx.fillRect(centerX - 6, this.y + this.height - 15, 12, 10);
+        ctx.globalAlpha = 1.0; // Reset alpha
+
+        // LAYER 6: Health Bar and UI
+        ctx.fillStyle = 'red';
+        ctx.fillRect(this.x, this.y - 12, this.width, 8);
+        ctx.fillStyle = isDashing ? '#E67E22' : 'lime';
+        ctx.fillRect(this.x, this.y - 12, healthPercent * this.width, 8);
+
+        // Boss label
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 12px Arial';
+        ctx.textAlign = 'center';
+
+        let label = 'RAILGUN';
+
+        ctx.fillText(label, centerX, this.y - 16);
+        ctx.textAlign = 'left';
+
+        // LAYER 7: PROMINENT RAILGUN BARREL SYSTEM
+        ctx.save(); // Save canvas state for rotation
+
+        // Move to center and rotate to barrel angle
+        ctx.translate(centerX, centerY);
+        ctx.rotate(this.barrelAngle);
+
+        // Main barrel (much larger and more prominent)
+        ctx.fillStyle = '#95A5A6'; // Light gray barrel
+        ctx.fillRect(0, -this.barrelWidth / 2, this.barrelLength, this.barrelWidth);
+
+        // Barrel segments for detail
+        ctx.fillStyle = '#BDC3C7';
+        ctx.fillRect(0, -this.barrelWidth / 2 + 1, this.barrelLength, 2);
+        ctx.fillRect(0, this.barrelWidth / 2 - 3, this.barrelLength, 2);
+
+        // Barrel tip/muzzle (more prominent)
+        ctx.fillStyle = '#ECF0F1';
+        ctx.fillRect(this.barrelLength - 8, -this.barrelWidth / 2 + 2, 8, this.barrelWidth - 4);
+
+        // Charging coils along the barrel (larger and more visible)
+        for (let i = 0; i < 5; i++) {
+            const coilX = 8 + (i * 7);
+            let coilColor = '#7F8C8D'; // Default gray
+
+            if (isLocking || isCharging) {
+                // Light up coils during charging
+                const intensity = Math.sin(Date.now() * 0.02 + i * 0.5) * 0.5 + 0.5;
+                coilColor = `rgba(0, 150, 255, ${intensity})`;
+            }
+
+            ctx.fillStyle = coilColor;
+            ctx.fillRect(coilX, -this.barrelWidth / 2 - 2, 3, this.barrelWidth + 4);
+        }
+
+        // Muzzle flash effect when firing
+        if (isCharging) {
+            const flashSize = Math.sin(Date.now() * 0.1) * 4 + 6;
+            ctx.fillStyle = `rgba(255, 100, 0, ${Math.sin(Date.now() * 0.1) * 0.3 + 0.5})`;
+            ctx.fillRect(this.barrelLength - 2, -flashSize / 2, 8, flashSize);
+        }
+
+        ctx.restore(); // Restore canvas state
+
+        // Debug: Show barrel tip (remove this later)
+        ctx.fillStyle = 'red';
+        ctx.beginPath();
+        ctx.arc(this.barrelTipX, this.barrelTipY, 3, 0, Math.PI * 2);
+        ctx.fill();
     }
+
+
+
+    // Add this method for the dash trail effect
+    renderDashTrail(ctx) {
+        const trailLength = 6;
+        const trailOpacity = 0.4;
+
+        for (let i = 0; i < trailLength; i++) {
+            const trailX = this.x - (this.dashVelocityX * i * 15);
+            const trailY = this.y - (this.dashVelocityY * i * 15);
+            const opacity = trailOpacity * (1 - i / trailLength);
+
+            ctx.fillStyle = `'#e40f0fff', ${opacity}`; // Orange trail
+            ctx.fillRect(trailX, trailY, this.width, this.height);
+        }
+    }
+
+
 }
 
 class Overlord {
@@ -920,6 +1321,7 @@ class Overlord {
         this.y = y;
         this.width = 40;
         this.height = 30;
+        this.game = game
 
         // Health and damage
         this.hp = Math.ceil(45 * multiplier);

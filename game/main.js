@@ -90,12 +90,13 @@ class Game {
         this.mouseX = this.width / 2;
         this.mouseY = this.height / 2;
         this.bullets = [];
+        this.lineshots = [];
         this.enemies = [];
         this.shooters = [];
         this.tanks = [];
         this.sprinters = [];
         this.bosses = [];
-        this.availableBosses = [Railgun]; // Add Blaster, Slasher, Sentinel, Railgun, Overlord for all bosses to be available
+        this.availableBosses = [Blaster, Slasher, Sentinel, Railgun, Overlord]; // Add Blaster, Slasher, Sentinel, Railgun, Overlord for all bosses to be available
         this.particles = [];
 
         // Pre-boss wave system
@@ -132,6 +133,21 @@ class Game {
         // Set volume levels
         if (this.backgroundMusic) this.backgroundMusic.volume = 0.05;
         if (this.bossMusic) this.bossMusic.volume = 0.05;
+
+        this.soundEffects = {
+            enemyHit: document.getElementById('enemyHit'),
+            enemyShot: document.getElementById('enemyShot'),
+            playerHit: document.getElementById('playerHit'),
+            playerShot: document.getElementById('playerShot'),
+            slasherDash: document.getElementById('slasherDash'),
+            railgunShot: document.getElementById('railgunShot')
+        }
+
+        Object.values(this.soundEffects).forEach(sound => {
+            if (sound) {
+                sound.loop = false;
+            }
+        });
 
         // Start background music
         this.startBackgroundMusic()
@@ -268,7 +284,14 @@ class Game {
         }, fadeInterval);
     }
 
-
+    playSound(soundName) {
+        const sound = this.soundEffects[soundName];
+        if (sound) {
+            sound.loop = false;
+            sound.currentTime = 0;
+            sound.play().catch(e => console.log('Sound play failed:', e));
+        }
+    }
 
     updatePlayerPreview() {
         const playerSprite = document.getElementById('playerSprite');
@@ -674,25 +697,25 @@ class Game {
 
         this.enemySpawnTimer += deltaTime;
         if (this.enemySpawnTimer > baseSpawnRate) {
-            this.enemies.push(new Enemy(Math.random() * (this.width - 40), -40, this.globalEnemyMultiplier));
+            this.enemies.push(new Enemy(Math.random() * (this.width - 40), -40, this.globalEnemyMultiplier, this));
             this.enemySpawnTimer = 0;
         }
 
         this.shooterSpawnTimer += deltaTime;
         if (this.shooterSpawnTimer > 6000) {
-            this.shooters.push(new Shooter(Math.random() * (this.width - 40), -40, this.globalEnemyMultiplier));
+            this.shooters.push(new Shooter(Math.random() * (this.width - 40), -40, this.globalEnemyMultiplier, this));
             this.shooterSpawnTimer = 0;
         }
 
         this.tankSpawnTimer += deltaTime;
         if (this.tankSpawnTimer > 10000 && this.waveNumber >= 2) {
-            this.tanks.push(new Tank(Math.random() * (this.width - 50), -50, this.globalEnemyMultiplier));
+            this.tanks.push(new Tank(Math.random() * (this.width - 50), -50, this.globalEnemyMultiplier, this));
             this.tankSpawnTimer = 0;
         }
 
         this.sprinterSpawnTimer += deltaTime;
         if (this.sprinterSpawnTimer > 8000 && this.waveNumber >= 3) {
-            this.sprinters.push(new Sprinter(Math.random() * (this.width - 40), -40, this.globalEnemyMultiplier));
+            this.sprinters.push(new Sprinter(Math.random() * (this.width - 40), -40, this.globalEnemyMultiplier, this));
             this.sprinterSpawnTimer = 0;
         }
     }
@@ -896,6 +919,38 @@ class Game {
         this.exp += amount;
     }
 
+    checkLineCollision(player, lineShot) {
+        // Simple line-rectangle intersection
+        const corners = [
+            { x: player.x, y: player.y },
+            { x: player.x + player.width, y: player.y },
+            { x: player.x, y: player.y + player.height },
+            { x: player.x + player.width, y: player.y + player.height }
+        ];
+
+        for (let corner of corners) {
+            const distance = this.pointToLineDistance(corner.x, corner.y, lineShot);
+            if (distance < lineShot.width / 2) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    pointToLineDistance(px, py, lineShot) {
+        const dx = lineShot.endX - lineShot.startX;
+        const dy = lineShot.endY - lineShot.startY;
+        const length = Math.sqrt(dx * dx + dy * dy);
+
+        if (length === 0) return Math.sqrt((px - lineShot.startX) ** 2 + (py - lineShot.startY) ** 2);
+
+        const t = Math.max(0, Math.min(1, ((px - lineShot.startX) * dx + (py - lineShot.startY) * dy) / (length * length)));
+        const projX = lineShot.startX + t * dx;
+        const projY = lineShot.startY + t * dy;
+
+        return Math.sqrt((px - projX) ** 2 + (py - projY) ** 2);
+    }
+
     updateEntities(deltaTime) {
         // Update bullets
         this.bullets = this.bullets.filter(bullet => {
@@ -1067,19 +1122,39 @@ class Game {
 
         // Update bosses
         this.bosses = this.bosses.filter(boss => {
-            boss.update(deltaTime, this.bullets, this.player, this.enemyDamageMultiplier, {
-                enemies: this.enemies,
-                shooters: this.shooters,
-                tanks: this.tanks,
-                sprinters: this.sprinters
-            });
+            if (boss.constructor.name === 'Railgun') {
+                // Railgun needs lineshots as second parameter
+                boss.update(deltaTime, this.lineshots, this.player, this.enemyDamageMultiplier);
+            } else {
+                // Other bosses use the standard format
+                boss.update(deltaTime, this.bullets, this.player, this.enemyDamageMultiplier, {
+                    enemies: this.enemies,
+                    shooters: this.shooters,
+                    tanks: this.tanks,
+                    sprinters: this.sprinters,
+                });
+            }
             return boss.hp > 0;
         });
+
 
         // Update particles
         this.particles = this.particles.filter(particle => {
             particle.update(deltaTime);
             return particle.life > 0;
+        });
+
+        this.lineshots = this.lineshots.filter(lineShot => {
+            console.log('Filtering LineShot - isPreview:', lineShot.isPreview, 'isActive:', lineShot.isActive, 'frameCount:', lineShot.frameCount);
+
+            lineShot.update(deltaTime);
+
+            if (lineShot.isPreview) {
+                return lineShot.isActive !== false;
+
+            }
+            return lineShot.frameCount < lineShot.maxFrames;
+
         });
     }
 
@@ -1100,6 +1175,7 @@ class Game {
                     // Damage the enemy first
                     enemy.takeDamage ? enemy.takeDamage(bullet.damage) : (enemy.hp -= bullet.damage);
                     this.createExplosion(bullet.x, bullet.y);
+                    this.playSound('enemyHit');
 
                     if (enemy.hp <= 0) {
                         this.createExplosion(enemy.x, enemy.y);
@@ -1130,6 +1206,7 @@ class Game {
                     // Damage the enemy first
                     shooter.takeDamage ? shooter.takeDamage(bullet.damage) : (shooter.hp -= bullet.damage);
                     this.createExplosion(bullet.x, bullet.y);
+                    this.playSound('enemyHit');
 
                     if (shooter.hp <= 0) {
                         this.createExplosion(shooter.x, shooter.y);
@@ -1154,6 +1231,7 @@ class Game {
                 if (this.checkCollision(bullet, this.tanks[j])) {
                     this.tanks[j].takeDamage(bullet.damage);
                     this.createExplosion(bullet.x, bullet.y);
+                    this.playSound('enemyHit');
 
                     if (this.tanks[j].hp <= 0) {
                         const tanks = this.tanks[j];
@@ -1179,6 +1257,7 @@ class Game {
                 if (this.checkCollision(bullet, this.sprinters[j])) {
                     this.sprinters[j].takeDamage(bullet.damage);
                     this.createExplosion(bullet.x, bullet.y);
+                    this.playSound('enemyHit');
 
                     if (this.sprinters[j].hp <= 0) {
                         const sprinters = this.sprinters[j];
@@ -1200,16 +1279,17 @@ class Game {
             }
 
             // Check vs bosses
-            // Check vs bosses
             for (let j = this.bosses.length - 1; j >= 0 && hitCount < bullet.pierce; j--) {
                 if (this.checkCollision(bullet, this.bosses[j])) {
                     this.bosses[j].takeDamage(bullet.damage);
                     this.createExplosion(bullet.x, bullet.y);
+                    this.playSound('enemyHit');
 
                     if (this.bosses[j].hp <= 0) {
                         this.createExplosion(this.bosses[j].x, this.bosses[j].y);
                         this.bosses.splice(j, 1);
                         this.clearMinions();
+                        this.playSound('bossDefeat')
 
                         // Switch back to background music here!
                         this.switchToBackgroundMusic();
@@ -1217,9 +1297,9 @@ class Game {
                         this.score += 200;
                         this.scoreThisWave += 200;
                         this.waveProgress += this.waveRequirement;
-                        this.addExp(100);
+                        this.addExp(500);
                         if (this.player.lifeSteal && this.player.health < this.player.maxHealth) {
-                            this.player.health += 3;
+                            this.player.health += 5;
                         }
                     }
                     hit = true;
@@ -1243,6 +1323,7 @@ class Game {
                             console.log(`Wall hit! HP before: ${wall.hp}, Bullet damage: ${bullet.damage}`);
                             wall.takeDamage(bullet.damage);
                             this.createExplosion(bullet.x, bullet.y);
+                            this.playSound('enemyHit');
 
                             if (wall.hp <= 0) {
                                 console.log('Wall destroyed!');
@@ -1260,7 +1341,7 @@ class Game {
             }
 
 
-        }
+        };
 
 
 
@@ -1269,6 +1350,7 @@ class Game {
             const bullet = this.bullets[i];
             if (bullet && !bullet.isPlayer && this.checkCollision(bullet, this.player)) {
                 this.createExplosion(this.player.x, this.player.y);
+                this.playSound('playerHit');
                 this.bullets.splice(i, 1);
                 const dmg = bullet.damage || 1;
                 this.player.takeDamageAmount(dmg);
@@ -1276,7 +1358,7 @@ class Game {
                     this.damagePlayer();
                 }
             }
-        }
+        };
 
         // All enemies vs player
         const allEnemies = [...this.enemies, ...this.shooters, ...this.tanks, ...this.sprinters, ...this.bosses];
@@ -1285,6 +1367,7 @@ class Game {
                 this.createExplosion(allEnemies[i].x, allEnemies[i].y);
                 const dmg = Math.ceil((allEnemies[i].contactDamage || 1) * this.enemyDamageMultiplier);
                 this.player.takeDamageAmount(dmg);
+                this.playSound('playerHit');
 
                 if (this.player.health <= 0) {
                     this.damagePlayer();
@@ -1294,7 +1377,7 @@ class Game {
                     this.removeEnemyFromArrays(allEnemies[i]);
                 }
             }
-        }
+        };
 
         // Player vs walls - solid collision (no damage)
         for (let bossIndex = 0; bossIndex < this.bosses.length; bossIndex++) {
@@ -1329,10 +1412,25 @@ class Game {
                     }
                 }
             }
-        }
+        };
 
+        // LineShot vs player collision
+        for (let i = this.lineshots.length - 1; i >= 0; i--) {
+            const lineShot = this.lineshots[i];
+            if (!lineShot || lineShot.isPreview || lineShot.damage === 0) continue;
 
+            // Check if player intersects with the line
+            if (this.checkLineCollision(this.player, lineShot)) {
+                this.createExplosion(this.player.x, this.player.y);
+                this.playSound('playerHit');
+                this.player.takeDamageAmount(lineShot.damage);
+                lineShot.isActive = false; // Remove the lineshot after hit
 
+                if (this.player.health <= 0) {
+                    this.damagePlayer();
+                }
+            }
+        };
 
         // Update score display
         document.getElementById('scoreValue').textContent = this.score;
@@ -1418,7 +1516,8 @@ class Game {
     }
 
     async gameOver() {
-        this.gameRunning = false;
+        this.gameRunning = false;      
+        this.playSound('playerDefeat')
 
         // End server session and get final payout
         const endResult = await post('/endGame', {});
@@ -1441,6 +1540,7 @@ class Game {
 
         // hasPaid = false;
         this.bullets = [];
+        this.lineshots = [];
         this.enemies = [];
         this.shooters = [];
         this.tanks = [];
@@ -1502,6 +1602,10 @@ class Game {
 
         // Render bullets (after walls)
         this.bullets.forEach(bullet => bullet.render(this.ctx));
+
+        this.lineshots.forEach((lineshot, index) => {
+            lineshot.render(this.ctx);
+        });
 
         // Render particles last
         this.particles.forEach(particle => particle.render(this.ctx));
