@@ -302,8 +302,16 @@ function handleWaveComplete(gameSession, data, res) {
 
     // Calculate payout SERVER-SIDE ONLY
     if (waveNumber % 5 === 0) {
-        gameSession.payoutEarned += 3; // Server controls payout calculation
-        console.log(`Wave ${waveNumber} payout earned. Total: ${gameSession.payoutEarned}`);
+        const MAX_PAYOUT = 30; // Max payout cap
+
+        if (gameSession.payoutEarned < MAX_PAYOUT) {
+            gameSession.payoutEarned += 3;
+
+            if (gameSession.payoutEarned > MAX_PAYOUT) {
+                gameSession.payoutEarned = MAX_PAYOUT;
+            }
+            console.log(`Wave ${waveNumber} payout earned. Total: ${gameSession.payoutEarned}`);
+        }
     }
 
     res.json({
@@ -322,7 +330,14 @@ app.post('/endGame', isAuthenticated, (req, res) => {
         return res.json({ ok: false, error: 'No active game session' });
     }
 
-    const finalPayout = gameSession.payoutEarned;
+    const MAX_PAYOUT = 30;
+    let finalPayout = gameSession.payoutEarned;
+    
+    // Safety cap - ensure final payout never exceeds maximum
+    if (finalPayout > MAX_PAYOUT) {
+        finalPayout = MAX_PAYOUT;
+        console.log(`Capped final payout from ${gameSession.payoutEarned} to ${MAX_PAYOUT}`);
+    }
 
     // Log game completion
     console.log(`Game ended for user ${gameSession.userId}:`, {
