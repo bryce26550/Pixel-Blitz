@@ -622,8 +622,6 @@ class Game {
         const randomIndex = Math.floor(Math.random() * this.availableBosses.length);
         const bossClass = this.availableBosses[randomIndex];
 
-        console.log(`Random boss selected: ${bossClass}`);
-
         const boss = new bossClass(this.width / 2 - 30, 75, this.globalEnemyMultiplier);
 
         // Give boss access to game dimensions
